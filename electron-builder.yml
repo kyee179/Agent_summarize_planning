@@ -1,0 +1,19 @@
+appId: com.agent.planning.calendar
+productName: Agent Planning Calendar
+directories:
+  output: release
+files:
+  - dist/**
+  - electron/**
+  - server/**
+  - "!server/data/**"
+  - package.json
+win:
+  target:
+    - nsis
+mac:
+  target:
+    - dmg
+linux:
+  target:
+    - AppImage

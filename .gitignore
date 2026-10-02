@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+.DS_Store
+.env
+*.log
+coverage/
+server/data/calendar.json
+server/data/
+*.sqlite*
+*.db*
+.env.*
+!.env.example

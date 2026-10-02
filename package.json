@@ -1,0 +1,70 @@
+{
+  "name": "agent-summarize-planning",
+  "version": "0.3.0",
+  "description": "A learning-focused React, Node.js, and Electron calendar app with reminders, journals, and AI planning drafts.",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "license": "MIT",
+  "author": "",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=24.18.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.cjs",
+    "dev:web": "vite --host 127.0.0.1 --port 5173",
+    "dev:api": "node server/index.cjs",
+    "dev:electron": "wait-on http://127.0.0.1:5173 && cross-env ELECTRON_START_URL=http://127.0.0.1:5173 electron .",
+    "start:api": "node server/index.cjs",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "lint": "eslint .",
+    "test": "vitest run && pnpm test:server",
+    "build": "vite build",
+    "build:desktop": "pnpm build && electron-builder --config electron-builder.yml",
+    "release:check": "pnpm lint && pnpm test && pnpm build",
+    "setup:env": "node scripts/setup-env.cjs",
+    "test:server": "node --test tests/*.test.cjs",
+    "backup:db": "node scripts/backup.cjs",
+    "smoke:desktop": "node scripts/smoke-desktop.cjs",
+    "smoke:web": "node scripts/smoke-web.cjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "cors": "latest",
+    "date-fns": "latest",
+    "express": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
+    "concurrently": "latest",
+    "cross-env": "latest",
+    "electron": "latest",
+    "electron-builder": "latest",
+    "eslint": "latest",
+    "globals": "latest",
+    "jsdom": "latest",
+    "vite": "latest",
+    "vitest": "latest",
+    "wait-on": "latest"
+  },
+  "build": {
+    "appId": "com.agent.planning.calendar",
+    "productName": "Agent Planning Calendar",
+    "files": [
+      "dist/**",
+      "electron/**",
+      "server/**",
+      "package.json",
+      "!server/data/**"
+    ],
+    "directories": {
+      "output": "release"
+    }
+  }
+}
