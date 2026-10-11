@@ -80,6 +80,30 @@ const definitions = {
     availabilitySource: { enum: ["settings", "request"] },
     notBefore: nullable(instant)
   }),
+  proposal: object({
+    summary: text(10000), weeklySummary: text(10000), cautions: strings,
+    summaryEvidenceIds: ids(), weeklySummaryEvidenceIds: ids(),
+    tasks: { type: "array", maxItems: 8, items: ref("task") },
+    estimates: { type: "array", maxItems: 8, items: ref("estimate") }
+  }),
+  agentWorkflow: object({
+    version: { const: 1 }, promptVersion: text(32), promptHash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+    skills: { type: "array", minItems: 2, maxItems: 2, items: object({
+      name: { enum: ["daily-summary", "task-planning"] }, version: text(32), sha256: { type: "string", pattern: "^[a-f0-9]{64}$" }
+    }) },
+    outcome: { enum: ["completed", "local", "fallback"] },
+    stopReason: { enum: ["finished", "local_provider", "missing_credentials", "unsupported_provider", "validation", "provider_error", "timeout", "turn_limit", "tool_limit", "error_limit", "size_limit"] },
+    turns: { type: "integer", minimum: 0, maximum: 12 }, toolCalls: { type: "integer", minimum: 0, maximum: 16 },
+    toolErrors: { type: "integer", minimum: 0, maximum: 3 },
+    elapsedMs: { type: "integer", minimum: 0 },
+    requestBytes: { type: "integer", minimum: 0, maximum: 3145728 },
+    summaryEvidenceIds: ids(), weeklySummaryEvidenceIds: ids(),
+    trace: { type: "array", maxItems: 16, items: object({
+      turn: { type: "integer", minimum: 1, maximum: 12 },
+      tool: { enum: ["read_evidence", "get_planning_context", "preview_plan", "finish_analysis", "unknown"] },
+      status: { enum: ["ok", "error"] }
+    }) }
+  }),
   bundle: object({
     schemaVersion: { const: 1 },
     evidence: { type: "array", maxItems: 100, items: ref("evidence") },

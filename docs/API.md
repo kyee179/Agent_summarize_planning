@@ -268,7 +268,7 @@ The server validates and applies the stored analysis in one SQLite transaction. 
 
 Event timestamps require ISO date-times with timezone and a strictly positive duration. Partial event updates are validated after merging with the stored event. IDs and creation timestamps are server-controlled. This stage does not guarantee conflict-free scheduling.
 
-For versioned analyses, application validates the contract and checks all journal evidence under the transaction lock. Changed/deleted related sources return `409` before any events are written. New events add `sourceTaskId`, `sourceEstimateId`, and `planningSchemaVersion`. A successful receipt remains replayable after sources change. Internal block overlap/buffers/availability/effort/dependency checks are implemented; conflicts against actual calendar commitments await the scheduler stage.
+For versioned analyses, application validates the contract and checks all journal evidence under the transaction lock. Changed/deleted related sources return `409` before any events are written. New events add `sourceTaskId`, `sourceEstimateId`, and `planningSchemaVersion`. A successful receipt remains replayable after sources change. Internal block overlap/buffers/availability/effort/dependency checks are implemented. The deterministic scheduler also checks current calendar commitments as described below.
 
 ## Deterministic scheduling
 
@@ -281,3 +281,18 @@ Analyze returns `409` if scheduling-relevant calendar/settings state changes dur
 Legacy analyses have no original calendar fingerprint. They receive live conflict checks; reanalysis adopts the full scheduling policy. New recurring event creates/updates capture `recurrenceTimezone` (or accept an explicit valid named timezone); existing anchors without it use the plan's timezone. Invalid existing calendar records or exceeded recurrence bounds return `422` with issues. Impossible event timestamps are rejected with `400` before storage.
 
 The planning Apply action avoids conflicts; manual event creation/editing can still create overlaps. The scheduler currently allocates unsplit sessions within one target day. Recurrence expansion is used by planning, while the ordinary events endpoint continues returning stored event records.
+## Bounded summary/planning workflow
+
+New analyses also return `agentWorkflow` metadata: pinned skill versions/hashes,
+prompt version/hash, outcome/stop reason, turn/tool/error counts, elapsed time,
+outgoing bytes, source-reference lists, and a redacted tool trace. See
+[the metadata schema](schemas/v1/agentWorkflow.json) and [Step 4](STEP_04.md).
+
+The Analyze request cannot supply tools, alter budgets, or select arbitrary skill
+files. Those fields are ignored. The proposal schema is used only by internal model
+tools, not as an authenticated public write endpoint. Tools do not write events.
+
+A stopped remote workflow returns a validated local analysis with explicit cautions
+and `agentWorkflow.outcome: "fallback"`; invalid planning inputs still return `422`
+before remote calls. Source/calendar/settings changes still return `409`. Legacy
+saved analyses without this metadata retain compatibility.

@@ -88,3 +88,11 @@ New analyses contain a separate `scheduling` object described by [scheduling.jso
 Effective occupancy hashes include only busy time (with buffers) intersecting the target day's availability. They ignore titles/notes and unrelated days. Settings hashes cover timezone and, when default availability was used, the default window clocks. They detect changed inputs rather than authenticate content. Apply checks them while holding the event-write lock.
 
 Events can store `recurrenceTimezone`, a named timezone for the source repeat clock. New recurring records capture it on create/update. Legacy repeats fall back to the planning timezone. Repeat instances are computed temporarily; there is no extra row per occurrence and no database migration. The validator checks block containment against the merged union of availability. See [STEP_03.md](STEP_03.md) for recurrence, buffers, dependencies, and transaction semantics.
+## Skill and workflow metadata
+
+Analysis may include `agentWorkflow`, validated with its own v1 closed schema.
+It records active skill/prompt provenance, outcome and stop reason, bounded counters,
+redacted tool traces, and summary evidence references. The new internal `proposal`
+schema accepts summaries/tasks/estimates; workflow code supplies evidence and plans.
+Summary references must resolve into the immutable contract evidence snapshot.
+SQLite and canonical bundle versions remain v1; these additions live in analysis JSON.

@@ -23,7 +23,8 @@ app.on("browser-window-created", (_event, window) => {
         }) });
         if (meeting.status !== 201) throw new Error('Meeting setup failed');
         const analysis = await call('/api/journals/' + journal.id + '/analyze', { method: 'POST', body: JSON.stringify({ targetDate: '2030-01-01' }) });
-        if (analysis.status !== 201 || !analysis.body.scheduleDrafts.length) throw new Error('Analysis failed');
+         if (analysis.status !== 201 || !analysis.body.scheduleDrafts.length) throw new Error('Analysis failed');
+         if (analysis.body.agentWorkflow?.outcome !== 'local' || analysis.body.agentWorkflow.skills.length !== 2) throw new Error('Skill provenance failed');
         if (analysis.body.scheduleDrafts[0].startsAt !== '2030-01-01T21:15:00.000Z' || analysis.body.scheduling.algorithm !== 'greedy-v1') throw new Error('Deterministic scheduling failed');
         const body = JSON.stringify({ analysisId: analysis.body.id });
         const route = '/api/journals/' + journal.id + '/apply-drafts';

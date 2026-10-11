@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { api } from "./api.js";
 import { PlanningTasks } from "./components/PlanningTasks.jsx";
+import { AnalysisSummaries } from "./components/AnalysisSummaries.jsx";
 import {
   buildMonthDays,
   eventToReminderLine,
@@ -496,8 +497,7 @@ function App() {
               <div className="panel-heading"><div><span className="eyebrow">Draft</span><h2>AI Plan</h2></div><CheckCircle2 size={20} /></div>
               {!activeAnalysis ? <p className="empty-state">Save and analyze a journal to create a draft plan.</p> : (
                 <div className="analysis-content">
-                  <section><h3>Summary</h3><p>{activeAnalysis.summary}</p></section>
-                  <section><h3>Weekly summary</h3><p>{activeAnalysis.weeklySummary}</p></section>
+                    <AnalysisSummaries analysis={activeAnalysis} />
                   <PlanningTasks analysis={activeAnalysis} />
                   {activeAnalysis.scheduling && <p>Scheduled around calendar events on {activeAnalysis.contract.plan.targetDate}, with {activeAnalysis.contract.plan.bufferMinutes}-minute buffers.</p>}
                   <section><h3>Schedule drafts</h3>{activeAnalysis.contract && <p>Times in {activeAnalysis.contract.plan.timezone}. Review before applying.</p>}{activeAnalysis.scheduleDrafts?.length ? activeAnalysis.scheduleDrafts.map((draft, index) => <div className="draft-card" key={`${draft.title}-${index}`}><strong>{draft.title}</strong><small>{new Intl.DateTimeFormat(undefined, { timeZone: activeAnalysis.contract?.plan.timezone || settings.timezone, dateStyle: "medium", timeStyle: "short" }).formatRange(new Date(draft.startsAt), new Date(draft.endsAt))}</small><p>{draft.rationale}</p></div>) : <p className="empty-state">No schedule drafts produced.</p>}</section>

@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://calendar-app.local/schemas/v1/agentWorkflow.json",
+  "title": "Calendar agentWorkflow v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "promptVersion",
+    "promptHash",
+    "skills",
+    "outcome",
+    "stopReason",
+    "turns",
+    "toolCalls",
+    "toolErrors",
+    "elapsedMs",
+    "requestBytes",
+    "summaryEvidenceIds",
+    "weeklySummaryEvidenceIds",
+    "trace"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "promptVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "\\S"
+    },
+    "promptHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "skills": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "version",
+          "sha256"
+        ],
+        "properties": {
+          "name": {
+            "enum": [
+              "daily-summary",
+              "task-planning"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "pattern": "\\S"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "outcome": {
+      "enum": [
+        "completed",
+        "local",
+        "fallback"
+      ]
+    },
+    "stopReason": {
+      "enum": [
+        "finished",
+        "local_provider",
+        "missing_credentials",
+        "unsupported_provider",
+        "validation",
+        "provider_error",
+        "timeout",
+        "turn_limit",
+        "tool_limit",
+        "error_limit",
+        "size_limit"
+      ]
+    },
+    "turns": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 12
+    },
+    "toolCalls": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 16
+    },
+    "toolErrors": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "elapsedMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "requestBytes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3145728
+    },
+    "summaryEvidenceIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "\\S"
+      },
+      "minItems": 0,
+      "maxItems": 100,
+      "uniqueItems": true
+    },
+    "weeklySummaryEvidenceIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "\\S"
+      },
+      "minItems": 0,
+      "maxItems": 100,
+      "uniqueItems": true
+    },
+    "trace": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "turn",
+          "tool",
+          "status"
+        ],
+        "properties": {
+          "turn": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "tool": {
+            "enum": [
+              "read_evidence",
+              "get_planning_context",
+              "preview_plan",
+              "finish_analysis",
+              "unknown"
+            ]
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "error"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

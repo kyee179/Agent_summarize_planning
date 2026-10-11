@@ -60,6 +60,15 @@ function assertAnalysis(analysis, context = {}) {
   if (!analysis.contract) throw new ContractError([{ path: "/contract", code: "required", message: "New analyses need a versioned planning contract" }]);
   assertBundle(analysis.contract, context);
   if (analysis.scheduling !== undefined) assertSchema("scheduling", analysis.scheduling);
+  if (analysis.agentWorkflow !== undefined) {
+    assertSchema("agentWorkflow", analysis.agentWorkflow);
+    const evidence = new Map(analysis.contract.evidence.map((item) => [item.id, item]));
+    const refs = [...analysis.agentWorkflow.summaryEvidenceIds, ...analysis.agentWorkflow.weeklySummaryEvidenceIds];
+    if (refs.some((id) => !evidence.has(id))) throw new ContractError([{ path: "/agentWorkflow", code: "reference", message: "Summary references must exist in the evidence snapshot" }]);
+    if (analysis.journalId && analysis.agentWorkflow.summaryEvidenceIds.some((id) => evidence.get(id).sourceId !== analysis.journalId)) {
+      throw new ContractError([{ path: "/agentWorkflow/summaryEvidenceIds", code: "source", message: "Selected-journal summary references must belong to that journal" }]);
+    }
+  }
   const projection = projectContract(analysis.contract);
   for (const name of ["tasks", "scheduleDrafts"]) {
     if (!isDeepStrictEqual(analysis[name], projection[name])) {

@@ -2,7 +2,7 @@
 
 This repository develops the personal planning agent from the existing [Calendar App](https://github.com/kyee179/Calendar_App) (MIT, starting commit `335b8f0`). Read [PROJECT_BRIEF.md](PROJECT_BRIEF.md) for the agreed product requirements and [docs/STEP_01.md](docs/STEP_01.md) for the complete first-stage code walkthrough, verification, and remaining engineering work.
 
-Stage 1 adds authenticated local API access, a trusted Electron IPC bridge, explicit environment loading, SQLite with one-time JSON migration, online backup, and atomic/idempotent draft application. Calendar conflicts and RAG remain the next stages.
+Stage 1 adds authenticated local API access, a trusted Electron IPC bridge, explicit environment loading, SQLite with one-time JSON migration, online backup, and atomic/idempotent draft application. The current implementation also includes versioned contracts, deterministic calendar scheduling, versioned skills, and bounded tool calling. Personal retrieval and evidence-based research remain future stages.
 
 Study Calendar is A learning-focused desktop calendar built with React, Node.js, and Electron. It displays the current date and time, shows a month calendar and agenda, stores reminders locally, saves daily/weekly journals, bookmarks precious entries, and lets users create, edit, delete, and preview notifications in this format:
 
@@ -155,3 +155,10 @@ Run `pnpm schemas:export` after editing the runtime schema definitions. Schema e
 - [Step 3: deterministic scheduling around calendar events](docs/STEP_03.md)
 
 Plans now reserve existing events and recurring commitments, preserve buffers, and report work that does not fit. Apply rechecks reviewed inputs inside the database transaction and asks for reanalysis when the calendar/settings changed. Task estimates remain uncertain; scheduled work sessions do not prove completion.
+## Versioned skills and bounded analysis
+
+Remote journal analysis now uses pinned `daily-summary` and `task-planning` skills
+with four controlled tools, validated previews, resource limits, and explicit local
+fallbacks. Summaries include reviewable source references. Calendar writes continue
+through the reviewed, atomic Apply action. See [Step 4 walkthrough](docs/STEP_04.md)
+for architecture, code, limits, version updates, and verification scope.

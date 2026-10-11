@@ -4,6 +4,7 @@ const { once } = require("node:events");
 const { createApp } = require("../server/index.cjs");
 const { createStore } = require("../server/store.cjs");
 const { assertAnalysis } = require("../server/contracts/analysis.cjs");
+const { localRuleBasedAnalysis } = require("../server/journalAnalyzer.cjs");
 async function fixture(t) {
   const previousProvider = process.env.AI_PROVIDER;
   process.env.AI_PROVIDER = "local";
@@ -193,4 +194,41 @@ test("legacy drafts receive live calendar conflict checks and event timestamps r
   assert.equal((await request("/api/journals/j/apply-drafts", { analysisId: "legacy" })).status, 409);
   const invalid = await request("/api/events", { title: "Impossible", startsAt: "2026-02-30T10:00:00Z", endsAt: "2026-02-30T11:00:00Z", calendarType: "study", notificationFormat: "Desktop notification" });
   assert.equal(invalid.status, 400);
+});
+
+test("API persists a completed tool workflow and preserves review/apply/replay behavior", async (t) => {
+  const { request, store } = await fixture(t);
+  const eventCount = store.listEvents().length;
+  const originalFetch = global.fetch, originalKey = process.env.GROQ_API_KEY;
+  t.after(() => { global.fetch = originalFetch; if (originalKey === undefined) delete process.env.GROQ_API_KEY; else process.env.GROQ_API_KEY = originalKey; });
+  process.env.AI_PROVIDER = "groq"; process.env.GROQ_API_KEY = "synthetic";
+  let turn = 0, evidence;
+  global.fetch = async (url, options) => {
+    if (!String(url).startsWith("https://api.groq.com/")) return originalFetch(url, options);
+    const body = JSON.parse(options.body); turn++;
+    let name, args;
+    if (turn === 1) { name = "read_evidence"; args = { offset: 0, limit: 20 }; }
+    if (turn === 2) {
+      evidence = JSON.parse(body.messages.at(-1).content).evidence;
+      name = "get_planning_context"; args = {};
+    }
+    if (turn === 3) {
+      const plan = JSON.parse(body.messages.at(-1).content);
+      const baseline = localRuleBasedAnalysis({ journal: store.getJournal("j"), trustedEvidence: evidence,
+        settings: { timezone: plan.timezone }, availability: plan.availability, targetDate: plan.targetDate });
+      name = "preview_plan"; args = { proposal: { summary: "The journal reports planned project work.", weeklySummary: "Partial context includes project work and an experiment.", cautions: [],
+        summaryEvidenceIds: evidence.filter((item) => item.sourceId === "j").map((item) => item.id), weeklySummaryEvidenceIds: evidence.map((item) => item.id),
+        tasks: baseline.contract.tasks, estimates: baseline.contract.estimates } };
+    }
+    if (turn === 4) { name = "finish_analysis"; args = { previewId: JSON.parse(body.messages.at(-1).content).previewId }; }
+    return new Response(JSON.stringify({ choices: [{ finish_reason: "tool_calls", message: { role: "assistant", content: null,
+      tool_calls: [{ id: `wire:${turn}`, type: "function", function: { name, arguments: JSON.stringify(args) } }] } }] }));
+  };
+  const result = await request("/api/journals/j/analyze", { maxTurns: 999, tools: ["write_calendar"] });
+  assert.equal(result.status, 201); assertAnalysis(result.body);
+  assert.equal(result.body.provider, "groq"); assert.equal(result.body.agentWorkflow.outcome, "completed");
+  assert.equal(result.body.agentWorkflow.turns, 4); assert.equal(store.listEvents().length, eventCount);
+  assert.deepEqual(store.getJournalAnalysis("j").agentWorkflow, result.body.agentWorkflow);
+  assert.equal((await request("/api/journals/j/apply-drafts", { analysisId: result.body.id })).status, 201);
+  assert.equal((await request("/api/journals/j/apply-drafts", { analysisId: result.body.id })).status, 200);
 });

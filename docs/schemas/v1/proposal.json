@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://calendar-app.local/schemas/v1/proposal.json",
+  "title": "Calendar proposal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "summary",
+    "weeklySummary",
+    "cautions",
+    "summaryEvidenceIds",
+    "weeklySummaryEvidenceIds",
+    "tasks",
+    "estimates"
+  ],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000,
+      "pattern": "\\S"
+    },
+    "weeklySummary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000,
+      "pattern": "\\S"
+    },
+    "cautions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000,
+        "pattern": "\\S"
+      },
+      "maxItems": 20
+    },
+    "summaryEvidenceIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "\\S"
+      },
+      "minItems": 0,
+      "maxItems": 100,
+      "uniqueItems": true
+    },
+    "weeklySummaryEvidenceIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "\\S"
+      },
+      "minItems": 0,
+      "maxItems": 100,
+      "uniqueItems": true
+    },
+    "tasks": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "https://calendar-app.local/schemas/v1/task.json"
+      }
+    },
+    "estimates": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "https://calendar-app.local/schemas/v1/estimate.json"
+      }
+    }
+  }
+}
