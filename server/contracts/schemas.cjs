@@ -73,6 +73,13 @@ const definitions = {
       explanation: text() }) },
     warnings: strings
   }),
+  scheduling: object({
+    version: { const: 1 }, algorithm: { const: "greedy-v1" },
+    calendarFingerprint: { type: "string", pattern: "^[a-f0-9]{64}$" },
+    settingsFingerprint: { type: "string", pattern: "^[a-f0-9]{64}$" },
+    availabilitySource: { enum: ["settings", "request"] },
+    notBefore: nullable(instant)
+  }),
   bundle: object({
     schemaVersion: { const: 1 },
     evidence: { type: "array", maxItems: 100, items: ref("evidence") },

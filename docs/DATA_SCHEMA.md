@@ -80,3 +80,11 @@ The contract is stored inside `analyses.data`; SQLite remains database version 1
 Workflow-owned source versions detect changed journals. `source_matched` means an excerpt exists in the referenced snapshot, not that its claim is true. Unknown deadlines are null. Unknown estimates have null effort and unknown confidence; known effort has low/expected/high minutes plus scope (remaining task or next session). A next session never proves completion.
 
 Calendar events created from versioned plans include `sourceAnalysisId`, `sourceTaskId`, `sourceEstimateId`, and `planningSchemaVersion`. Root analysis `tasks` and `scheduleDrafts` are compatibility projections, not an independent source of task truth. Legacy analyses remain readable and applicable under their previous validation.
+
+## Deterministic scheduling metadata
+
+New analyses contain a separate `scheduling` object described by [scheduling.json](schemas/v1/scheduling.json). It records `version: 1`, `algorithm: greedy-v1`, `calendarFingerprint`, `settingsFingerprint`, `availabilitySource` (settings or request), and `notBefore`. The canonical contract and SQLite schema remain version 1. Old saved records remain readable without this metadata.
+
+Effective occupancy hashes include only busy time (with buffers) intersecting the target day's availability. They ignore titles/notes and unrelated days. Settings hashes cover timezone and, when default availability was used, the default window clocks. They detect changed inputs rather than authenticate content. Apply checks them while holding the event-write lock.
+
+Events can store `recurrenceTimezone`, a named timezone for the source repeat clock. New recurring records capture it on create/update. Legacy repeats fall back to the planning timezone. Repeat instances are computed temporarily; there is no extra row per occurrence and no database migration. The validator checks block containment against the merged union of availability. See [STEP_03.md](STEP_03.md) for recurrence, buffers, dependencies, and transaction semantics.

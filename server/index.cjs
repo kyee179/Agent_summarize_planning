@@ -5,19 +5,21 @@ const { loadEnvironment } = require("./environment.cjs");
 const { localApiSecurity } = require("./security.cjs");
 const { createStore } = require("./store.cjs");
 const { analyzeJournal } = require("./journalAnalyzer.cjs");
-const { assertBundle } = require("./contracts/validate.cjs");
+const { assertBundle, assertSchema, ContractError, isInstant, isCalendarDate, isTimezone } = require("./contracts/validate.cjs");
 const { assertAnalysis, assertEvidenceCurrent, projectContract } = require("./contracts/analysis.cjs");
+const { localParts } = require("./contracts/time.cjs");
+const { scheduleAnalysis, assertScheduleCurrent, assertLegacyDraftsCurrent, planningRange } = require("./scheduler.cjs");
 
 const VALID_TYPES = new Set(["personal", "study", "vacation", "holiday", "birthday", "other"]);
 const VALID_REPEAT = new Set(["none", "daily", "weekly", "monthly", "yearly"]);
 const VALID_JOURNAL_TYPES = new Set(["daily", "weekly"]);
 
 function isIsoDate(value) {
-  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/.test(value) && !Number.isNaN(new Date(value).getTime());
+  return typeof value === "string" && isInstant(value);
 }
 
 function isDateOnly(value) {
-  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
+  return typeof value === "string" && isCalendarDate(value);
 }
 
 function validateEventPayload(payload, { partial = false } = {}) {
@@ -34,6 +36,7 @@ function validateEventPayload(payload, { partial = false } = {}) {
   if (isIsoDate(payload.startsAt) && isIsoDate(payload.endsAt) && new Date(payload.endsAt) <= new Date(payload.startsAt)) errors.push("endsAt must be after startsAt");
   if (payload.calendarType !== undefined && !VALID_TYPES.has(payload.calendarType)) errors.push(`calendarType must be one of ${Array.from(VALID_TYPES).join(", ")}`);
   if (payload.repeat !== undefined && !VALID_REPEAT.has(payload.repeat)) errors.push(`repeat must be one of ${Array.from(VALID_REPEAT).join(", ")}`);
+  if (payload.recurrenceTimezone !== undefined && !isTimezone(payload.recurrenceTimezone)) errors.push("recurrenceTimezone must be a named timezone");
   if (payload.notifyMinutesBefore !== undefined && (!Number.isInteger(payload.notifyMinutesBefore) || payload.notifyMinutesBefore < 0 || payload.notifyMinutesBefore > 10080)) errors.push("notifyMinutesBefore must be an integer between 0 and 10080");
   for (const field of ["notificationFormat", "location", "notes", "color"]) {
     if (payload[field] !== undefined && typeof payload[field] !== "string") errors.push(`${field} must be a string`);
@@ -94,7 +97,7 @@ function normalizeJournal(payload, existing = {}) {
   };
 }
 
-function createApp({ store, apiToken, allowedOrigins = [] }) {
+function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Date().toISOString() }) {
   const app = express();
   app.disable("x-powered-by");
   app.use(localApiSecurity(apiToken, allowedOrigins));
@@ -148,6 +151,7 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
     if (errors.length > 0) return res.status(400).json({ errors });
 
     const event = { ...normalizeEvent(editableEvent(req.body)), id: crypto.randomUUID() };
+    if (event.repeat !== "none" && !event.recurrenceTimezone) event.recurrenceTimezone = store.getSettings().timezone;
     res.status(201).json(store.createEvent(event));
   });
 
@@ -158,6 +162,7 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
     if (errors.length > 0) return res.status(400).json({ errors });
 
     const patch = editableEvent(req.body);
+    if ((patch.repeat ?? current.repeat) !== "none" && !patch.recurrenceTimezone && !current.recurrenceTimezone) patch.recurrenceTimezone = store.getSettings().timezone;
     if (patch.title !== undefined) patch.title = String(patch.title).trim();
     if (patch.notifyMinutesBefore !== undefined) patch.notifyMinutesBefore = Number(patch.notifyMinutesBefore);
     const event = store.updateEvent(req.params.id, patch);
@@ -215,11 +220,12 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
         // This runs under the batch writer lock, including checks on related journal evidence.
         assertEvidenceCurrent(analysis.contract, store.getJournal);
         drafts = projectContract(analysis.contract).scheduleDrafts;
+        assertScheduleCurrent(analysis, store.listPlanningEvents(planningRange(analysis.contract.plan)), store.getSettings(), clock());
       }
       if (!Array.isArray(drafts) || !drafts.length || drafts.length > 100) {
         throw Object.assign(new Error("Analysis must contain between 1 and 100 drafts"), { status: 400 });
       }
-      return drafts.map((draft, index) => {
+      const events = drafts.map((draft, index) => {
         if (!draft || typeof draft !== "object" || Array.isArray(draft)) throw Object.assign(new Error(`Draft ${index + 1} is invalid`), { status: 400 });
         const payload = {
           title: draft.title, startsAt: draft.startsAt, endsAt: draft.endsAt,
@@ -234,6 +240,11 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
         return { ...normalizeEvent(payload), id: crypto.randomUUID(), sourceAnalysisId: analysis.id,
           ...(analysis.contract ? { sourceTaskId: draft.taskId, sourceEstimateId: draft.estimateId, planningSchemaVersion: analysis.contract.schemaVersion } : {}) };
       });
+      if (!analysis.contract) assertLegacyDraftsCurrent(events, store.listPlanningEvents({
+        from: new Date(Math.min(...events.map((event) => Date.parse(event.startsAt)))).toISOString(),
+        to: new Date(Math.max(...events.map((event) => Date.parse(event.endsAt)))).toISOString()
+      }), store.getSettings().timezone);
+      return events;
     });
     res.status(result.replayed ? 200 : 201).json(result);
   });
@@ -243,13 +254,26 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
     if (!journal) return res.status(404).json({ error: "Journal not found" });
 
     const settings = store.getSettings();
+    const asOf = clock();
+    if (!isTimezone(settings.timezone)) throw new ContractError([{ path: "/settings/timezone", code: "timezone", message: "Configure a valid named timezone" }]);
+    const today = localParts(Date.parse(asOf), settings.timezone).date;
+    // Historical journals inform future work. A request can explicitly select another date.
+    const targetDate = req.body.targetDate !== undefined ? req.body.targetDate : journal.journalDate > today ? journal.journalDate : today;
+    const availability = req.body.availability !== undefined ? req.body.availability : settings.defaultAvailability;
+    const inputPlan = { id: "input", state: "proposal", timezone: settings.timezone, targetDate, availability,
+      bufferMinutes: 15, blocks: [], unscheduled: [], warnings: [] };
+    assertSchema("plan", inputPlan);
+    assertBundle({ schemaVersion: 1, evidence: [], tasks: [], estimates: [], plan: inputPlan });
+    const existingEvents = store.listPlanningEvents(planningRange(inputPlan));
     const relatedJournals = store.listJournals({ type: journal.type === "daily" ? "weekly" : undefined }).filter((item) => item.id !== journal.id).slice(0, 5);
-    const result = await analyzeJournal({
+    const interpreted = await analyzeJournal({
       journal,
       relatedJournals,
       settings,
-      availability: req.body.availability !== undefined ? req.body.availability : settings.defaultAvailability
+      availability, targetDate, existingEvents, notBefore: asOf
     });
+    const result = scheduleAnalysis(interpreted, { events: existingEvents, settings, notBefore: asOf,
+      availabilitySource: req.body.availability !== undefined ? "request" : "settings" });
     const analysis = {
       ...result,
       id: crypto.randomUUID(),
@@ -260,6 +284,7 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
     // Reject a result if its source was edited or deleted while the provider ran.
     const current = store.getJournal(journal.id);
     if (!current || current.updatedAt !== journal.updatedAt) return res.status(409).json({ error: "Journal changed during analysis; try again" });
+    assertScheduleCurrent(analysis, store.listPlanningEvents(planningRange(analysis.contract.plan)), store.getSettings(), clock());
     res.status(201).json(store.saveJournalAnalysis(analysis));
   });
 
@@ -302,7 +327,7 @@ function pick(payload, fields) {
   return Object.fromEntries(Object.entries(payload).filter(([key]) => fields.includes(key)));
 }
 function editableEvent(payload) {
-  return pick(payload, ["title", "startsAt", "endsAt", "calendarType", "location", "notes", "color", "notifyMinutesBefore", "notificationFormat", "repeat"]);
+  return pick(payload, ["title", "startsAt", "endsAt", "calendarType", "location", "notes", "color", "notifyMinutesBefore", "notificationFormat", "repeat", "recurrenceTimezone"]);
 }
 function editableJournal(payload) {
   return pick(payload, ["type", "journalDate", "title", "content", "bookmarked", "tags"]);

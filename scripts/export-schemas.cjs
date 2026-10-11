@@ -6,4 +6,4 @@ fs.mkdirSync(directory, { recursive: true });
 for (const [name, schema] of Object.entries(schemas)) {
   fs.writeFileSync(path.join(directory, `${name}.json`), `${JSON.stringify(schema, null, 2)}\n`);
 }
-console.log("Exported task, evidence, estimate, plan, and bundle JSON Schemas v1.");
+console.log(`Exported ${Object.keys(schemas).join(", ")} JSON Schemas v1.`);

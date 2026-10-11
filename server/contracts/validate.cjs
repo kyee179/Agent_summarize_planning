@@ -136,6 +136,12 @@ function assertBundle(bundle, { trustedEvidence, expectedPlan } = {}) {
     }
   }
   const scheduled = new Set();
+  const mergedWindows = [];
+  for (const window of windows.sort((a, b) => a.start - b.start || a.end - b.end)) {
+    const previous = mergedWindows.at(-1);
+    if (previous && window.start <= previous.end) previous.end = Math.max(previous.end, window.end);
+    else mergedWindows.push({ ...window });
+  }
   const totals = new Map();
   bundle.plan.blocks.forEach((block, i) => {
     const task = tasks.get(block.taskId), estimate = estimates.get(block.estimateId);
@@ -146,7 +152,7 @@ function assertBundle(bundle, { trustedEvidence, expectedPlan } = {}) {
     check(Date.parse(block.endsAt) > Date.parse(block.startsAt), path, "Block end must follow start");
     if (task?.deadline?.kind === "hard") check(Date.parse(block.endsAt) <= Date.parse(task.deadline.at), path, "Block must finish by its evidenced hard deadline");
     check(Date.parse(block.endsAt) - Date.parse(block.startsAt) === block.effortMinutes * 60000, path, "Block effort must equal its elapsed minutes");
-    check(windows.some((window) => Date.parse(block.startsAt) >= window.start && Date.parse(block.endsAt) <= window.end), path, "Block must fit a supplied availability window on the target date");
+    check(mergedWindows.some((window) => Date.parse(block.startsAt) >= window.start && Date.parse(block.endsAt) <= window.end), path, "Block must fit a supplied availability window on the target date");
     totals.set(block.taskId, (totals.get(block.taskId) || 0) + block.effortMinutes);
     scheduled.add(block.taskId);
   });

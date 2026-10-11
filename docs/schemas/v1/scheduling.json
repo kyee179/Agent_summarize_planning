@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://calendar-app.local/schemas/v1/scheduling.json",
+  "title": "Calendar scheduling v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "algorithm",
+    "calendarFingerprint",
+    "settingsFingerprint",
+    "availabilitySource",
+    "notBefore"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "algorithm": {
+      "const": "greedy-v1"
+    },
+    "calendarFingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "settingsFingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "availabilitySource": {
+      "enum": [
+        "settings",
+        "request"
+      ]
+    },
+    "notBefore": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "instant"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

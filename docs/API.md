@@ -269,3 +269,15 @@ The server validates and applies the stored analysis in one SQLite transaction. 
 Event timestamps require ISO date-times with timezone and a strictly positive duration. Partial event updates are validated after merging with the stored event. IDs and creation timestamps are server-controlled. This stage does not guarantee conflict-free scheduling.
 
 For versioned analyses, application validates the contract and checks all journal evidence under the transaction lock. Changed/deleted related sources return `409` before any events are written. New events add `sourceTaskId`, `sourceEstimateId`, and `planningSchemaVersion`. A successful receipt remains replayable after sources change. Internal block overlap/buffers/availability/effort/dependency checks are implemented; conflicts against actual calendar commitments await the scheduler stage.
+
+## Deterministic scheduling
+
+Analysis accepts optional `targetDate: YYYY-MM-DD` in addition to availability. The default is the later of the journal date and today's date in the configured timezone. The server captures an explicit `notBefore` timestamp; elapsed windows produce unscheduled work. Client-supplied event lists or scheduling metadata are not used.
+
+The workflow allocates around current events and buffered daily/weekly/monthly/yearly instances. Both local and remote interpretation use the same deterministic allocator. The response adds `scheduling`: version/algorithm, effective-calendar fingerprint, settings fingerprint, availability source, and captured notBefore. See [its JSON schema](schemas/v1/scheduling.json) and [the code walkthrough](STEP_03.md).
+
+Analyze returns `409` if scheduling-relevant calendar/settings state changes during interpretation. Apply rechecks sources, current occupancy, settings, reproduced allocations, and elapsed starts under the SQLite writer lock. A changed reviewed proposal returns `409` and must be analyzed/reviewed again. No blocks are silently moved. Successful receipts keep their existing retry behavior.
+
+Legacy analyses have no original calendar fingerprint. They receive live conflict checks; reanalysis adopts the full scheduling policy. New recurring event creates/updates capture `recurrenceTimezone` (or accept an explicit valid named timezone); existing anchors without it use the plan's timezone. Invalid existing calendar records or exceeded recurrence bounds return `422` with issues. Impossible event timestamps are rejected with `400` before storage.
+
+The planning Apply action avoids conflicts; manual event creation/editing can still create overlaps. The scheduler currently allocates unsplit sessions within one target day. Recurrence expansion is used by planning, while the ordinary events endpoint continues returning stored event records.

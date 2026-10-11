@@ -138,7 +138,7 @@ See [docs/DATA_SCHEMA.md](docs/DATA_SCHEMA.md).
 - Add recurring-event expansion in the UI
 - Add drag-and-drop event movement
 - Add import/export for `.ics` calendar files
-- Add deterministic scheduling against calendar commitments (versioned task/evidence/estimate/plan contracts are implemented)
+- Add multi-day/task-splitting policy (deterministic scheduling around existing events and availability is implemented)
 - Add AI planning features after the core calendar is stable
 
 ## License
@@ -151,3 +151,7 @@ MIT
 - [Step 2: task, evidence, estimate, and planning contracts](docs/STEP_02.md)
 
 Run `pnpm schemas:export` after editing the runtime schema definitions. Schema export parity is checked by the test suite. The review panel shows source excerpts, uncertain effort ranges, and unknown deadlines. New analyses use a validated canonical contract; calendar writes still require Apply Drafts.
+
+- [Step 3: deterministic scheduling around calendar events](docs/STEP_03.md)
+
+Plans now reserve existing events and recurring commitments, preserve buffers, and report work that does not fit. Apply rechecks reviewed inputs inside the database transaction and asks for reanalysis when the calendar/settings changed. Task estimates remain uncertain; scheduled work sessions do not prove completion.

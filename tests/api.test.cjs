@@ -34,7 +34,7 @@ async function fixture(t) {
     return { status: response.status, body: response.status === 204 ? null : await response.json() };
   }
   store.createJournal({ id: "j", title: "Journal", content: "Study", type: "daily", journalDate: "2026-10-02" });
-  store.saveJournalAnalysis({ id: "a", journalId: "j", scheduleDrafts: [draft, { ...draft, title: "Second" }] });
+  store.saveJournalAnalysis({ id: "a", journalId: "j", scheduleDrafts: [draft, { ...draft, title: "Second", startsAt: "2026-10-02T10:15:00Z", endsAt: "2026-10-02T11:15:00Z" }] });
   return { store, request };
 }
 

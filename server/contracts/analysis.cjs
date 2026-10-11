@@ -1,6 +1,6 @@
 const crypto = require("node:crypto");
 const { isDeepStrictEqual } = require("node:util");
-const { assertBundle, ContractError, isInstant } = require("./validate.cjs");
+const { assertBundle, assertSchema, ContractError, isInstant } = require("./validate.cjs");
 
 function sourceVersion(journal) {
   return crypto.createHash("sha256").update(JSON.stringify([
@@ -59,6 +59,7 @@ function contractAnalysis(result, contract, context = {}) {
 function assertAnalysis(analysis, context = {}) {
   if (!analysis.contract) throw new ContractError([{ path: "/contract", code: "required", message: "New analyses need a versioned planning contract" }]);
   assertBundle(analysis.contract, context);
+  if (analysis.scheduling !== undefined) assertSchema("scheduling", analysis.scheduling);
   const projection = projectContract(analysis.contract);
   for (const name of ["tasks", "scheduleDrafts"]) {
     if (!isDeepStrictEqual(analysis[name], projection[name])) {

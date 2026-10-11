@@ -499,8 +499,10 @@ function App() {
                   <section><h3>Summary</h3><p>{activeAnalysis.summary}</p></section>
                   <section><h3>Weekly summary</h3><p>{activeAnalysis.weeklySummary}</p></section>
                   <PlanningTasks analysis={activeAnalysis} />
+                  {activeAnalysis.scheduling && <p>Scheduled around calendar events on {activeAnalysis.contract.plan.targetDate}, with {activeAnalysis.contract.plan.bufferMinutes}-minute buffers.</p>}
                   <section><h3>Schedule drafts</h3>{activeAnalysis.contract && <p>Times in {activeAnalysis.contract.plan.timezone}. Review before applying.</p>}{activeAnalysis.scheduleDrafts?.length ? activeAnalysis.scheduleDrafts.map((draft, index) => <div className="draft-card" key={`${draft.title}-${index}`}><strong>{draft.title}</strong><small>{new Intl.DateTimeFormat(undefined, { timeZone: activeAnalysis.contract?.plan.timezone || settings.timezone, dateStyle: "medium", timeStyle: "short" }).formatRange(new Date(draft.startsAt), new Date(draft.endsAt))}</small><p>{draft.rationale}</p></div>) : <p className="empty-state">No schedule drafts produced.</p>}</section>
                   {activeAnalysis.cautions?.length > 0 && <section><h3>Cautions</h3>{activeAnalysis.cautions.map((item) => <p className="caution" key={item}>{item}</p>)}</section>}
+                  {activeAnalysis.contract?.plan.warnings.length > 0 && <section><h3>Planning warnings</h3>{activeAnalysis.contract.plan.warnings.map((item) => <p className="caution" key={item}>{item}</p>)}</section>}
                   <button className="primary-button full-width" type="button" onClick={applyScheduleDrafts} disabled={!activeAnalysis.scheduleDrafts?.length || isApplying || activeAnalysis.applied}><CheckCircle2 size={16} />{isApplying ? "Applying..." : activeAnalysis.applied ? "Drafts applied" : "Apply Drafts"}</button>
                 </div>
               )}

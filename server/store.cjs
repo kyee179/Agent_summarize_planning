@@ -3,6 +3,7 @@ const path = require("node:path");
 const { DatabaseSync, backup } = require("node:sqlite");
 const { defaultData, ensureShape } = require("./defaults.cjs");
 const { assertAnalysis, assertEvidenceCurrent } = require("./contracts/analysis.cjs");
+const { assertScheduleCurrent, planningRange } = require("./scheduler.cjs");
 
 function conflict(message) {
   return Object.assign(new Error(message), { status: 409 });
@@ -39,6 +40,8 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
     if (analysis.contract !== undefined) {
       assertAnalysis(analysis);
       assertEvidenceCurrent(analysis.contract, (id) => parse(db.prepare("SELECT data FROM journals WHERE id=?").get(id)));
+      if (analysis.scheduling) assertScheduleCurrent(analysis, planningEvents(planningRange(analysis.contract.plan)),
+        parse(db.prepare("SELECT data FROM settings WHERE id=1").get()));
     }
     db.prepare(`INSERT INTO analyses(journal_id, id, data) VALUES (?, ?, ?)
       ON CONFLICT(journal_id) DO UPDATE SET id=excluded.id, data=excluded.data`)
@@ -46,6 +49,12 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
     return analysis;
   }
   const parse = (row) => row ? JSON.parse(row.data) : null;
+  function planningEvents({ from, to }) {
+    // Old recurrence anchors must be included even if their original interval is outside this day.
+    return db.prepare(`SELECT data FROM events WHERE (ends_at > ? AND starts_at < ?)
+      OR (starts_at < ? AND json_extract(data, '$.repeat') IS NOT NULL AND json_extract(data, '$.repeat') != 'none')`)
+      .all(Date.parse(from), Date.parse(to), Date.parse(to)).map(parse);
+  }
 
   try {
     // Acquire the writer lock before reading the version: two app processes may start together.
@@ -94,6 +103,7 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
         .all(from ? new Date(from).getTime() : -8640000000000000,
           to ? new Date(to).getTime() : 8640000000000000).map(parse);
     },
+    listPlanningEvents: planningEvents,
     getEvent: (id) => parse(db.prepare("SELECT data FROM events WHERE id=?").get(id)),
     createEvent: putEvent,
     updateEvent(id, patch) {
