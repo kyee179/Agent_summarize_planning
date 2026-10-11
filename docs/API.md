@@ -221,42 +221,19 @@ Request body may include availability windows:
 }
 ```
 
-Response `201`:
+Response `201` includes `id`, `journalId`, `createdAt`, `provider`, `model`, `summary`, `weeklySummary`, `cautions`, and a canonical `contract`:
 
-```json
-{
-  "id": "uuid",
-  "journalId": "uuid",
-  "provider": "local",
-  "model": "rule-based-v1",
-  "summary": "Found 3 planning signals across the journal text.",
-  "weeklySummary": "This week mainly involved job search and dissertation.",
-  "tasks": [
-    {
-      "title": "Finish remaining job assessment",
-      "priority": "high",
-      "urgency": "high",
-      "estimatedMinutes": 90,
-      "confidence": "medium",
-      "reason": "Detected from journal wording and planning keywords."
-    }
-  ],
-  "scheduleDrafts": [
-    {
-      "title": "Work on project",
-      "startsAt": "2026-07-13T19:00:00.000Z",
-      "endsAt": "2026-07-13T21:00:00.000Z",
-      "calendarType": "study",
-      "notifyMinutesBefore": 15,
-      "notificationFormat": "Desktop notification",
-      "source": "journal analysis",
-      "rationale": "Detected from journal wording and planning keywords.",
-      "confidence": "medium"
-    }
-  ],
-  "cautions": []
-}
-```
+- `contract.schemaVersion`: 1.
+- `contract.evidence`: workflow-collected source excerpts, versions, verification, and normalized facts.
+- `contract.tasks`: evidence-linked task state, importance, optional deadlines, estimate references, dependencies, and clarification questions.
+- `contract.estimates`: scope, basis, effort ranges or null, confidence, evidence, and assumptions.
+- `contract.plan`: proposal state, timezone/date/availability/buffer, proposed blocks, and unscheduled reasons.
+
+The root `tasks` and `scheduleDrafts` arrays are derived compatibility views. Their values are checked against the canonical contract before persistence. Root task `urgency` is currently `unknown`; `estimatedMinutes` can be null. See [the complete synthetic response](examples/analysis-v1.json), [versioned JSON schemas](schemas/v1/bundle.json), and [STEP_02.md](STEP_02.md).
+
+Malformed planning inputs return `422` with `error` and `issues: [{path, code, message}]`. Invalid provider output falls back to validated local analysis with a caution. Invalid timezone or default availability settings are also rejected with `422`. Empty availability is valid and produces unscheduled work. Overnight windows must be split; ambiguous/nonexistent timezone clocks fail explicitly.
+
+GET analysis adds `contractStatus: versioned|legacy` and the existing `applied` flag. Legacy saved records remain readable and retain their stage-1 apply behavior; they do not acquire evidence guarantees without reanalysis.
 
 ### AI Provider Environment Variables
 
@@ -290,3 +267,5 @@ The server validates and applies the stored analysis in one SQLite transaction. 
 `events` contains all created event objects and their original IDs. Retrying the same analysis returns the original receipt without creating events. A receipt survives restarts and reanalysis. Errors: 400 for invalid draft fields or invalid body, 404 for a missing journal, 409 for a stale/unavailable analysis. All failures roll back batch writes. Analysis GET responses include `applied: true/false`. Journal content/date/type edits invalidate old analyses. Journal deletion removes analyses and receipts, while already applied events remain independently editable.
 
 Event timestamps require ISO date-times with timezone and a strictly positive duration. Partial event updates are validated after merging with the stored event. IDs and creation timestamps are server-controlled. This stage does not guarantee conflict-free scheduling.
+
+For versioned analyses, application validates the contract and checks all journal evidence under the transaction lock. Changed/deleted related sources return `409` before any events are written. New events add `sourceTaskId`, `sourceEstimateId`, and `planningSchemaVersion`. A successful receipt remains replayable after sources change. Internal block overlap/buffers/availability/effort/dependency checks are implemented; conflicts against actual calendar commitments await the scheduler stage.

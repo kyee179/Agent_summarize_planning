@@ -70,3 +70,13 @@ Schema version 1 uses separate SQLite tables with JSON payloads and indexed nume
 | `tasks` | object[] | Extracted tasks with priority, urgency, duration, confidence, and reason. |
 | `scheduleDrafts` | object[] | Draft calendar blocks. These do not become events until applied. |
 | `cautions` | string[] | Provider or confidence warnings. |
+
+## Planning contract version 1
+
+New journal analyses contain `contract` with separate evidence, task, estimate, and plan records. Review the exported [evidence](schemas/v1/evidence.json), [task](schemas/v1/task.json), [estimate](schemas/v1/estimate.json), [plan](schemas/v1/plan.json), and [bundle](schemas/v1/bundle.json) JSON schemas. [STEP_02.md](STEP_02.md) explains every field and the cross-record invariants.
+
+The contract is stored inside `analyses.data`; SQLite remains database version 1. Contract versions and database versions evolve independently. Task/estimate IDs are local to an analysis. Dedicated lifecycle tables and cross-analysis identities will be designed with future task editing flows.
+
+Workflow-owned source versions detect changed journals. `source_matched` means an excerpt exists in the referenced snapshot, not that its claim is true. Unknown deadlines are null. Unknown estimates have null effort and unknown confidence; known effort has low/expected/high minutes plus scope (remaining task or next session). A next session never proves completion.
+
+Calendar events created from versioned plans include `sourceAnalysisId`, `sourceTaskId`, `sourceEstimateId`, and `planningSchemaVersion`. Root analysis `tasks` and `scheduleDrafts` are compatibility projections, not an independent source of task truth. Legacy analyses remain readable and applicable under their previous validation.

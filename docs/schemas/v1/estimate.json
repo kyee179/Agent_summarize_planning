@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://calendar-app.local/schemas/v1/estimate.json",
+  "title": "Calendar estimate v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "taskId",
+    "scope",
+    "basis",
+    "effortMinutes",
+    "confidence",
+    "evidenceIds",
+    "assumptions",
+    "rationale"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "\\S"
+    },
+    "taskId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "\\S"
+    },
+    "scope": {
+      "enum": [
+        "remaining_task",
+        "next_session"
+      ]
+    },
+    "basis": {
+      "enum": [
+        "unknown",
+        "personal_history",
+        "project_estimate",
+        "official_reference",
+        "model",
+        "local_heuristic"
+      ]
+    },
+    "effortMinutes": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "low",
+            "expected",
+            "high"
+          ],
+          "properties": {
+            "low": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 525600
+            },
+            "expected": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 525600
+            },
+            "high": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 525600
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "confidence": {
+      "enum": [
+        "unknown",
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "evidenceIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "\\S"
+      },
+      "minItems": 0,
+      "maxItems": 100,
+      "uniqueItems": true
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000,
+        "pattern": "\\S"
+      },
+      "maxItems": 20
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": "\\S"
+    }
+  }
+}

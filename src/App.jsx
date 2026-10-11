@@ -19,6 +19,7 @@ import {
   X
 } from "lucide-react";
 import { api } from "./api.js";
+import { PlanningTasks } from "./components/PlanningTasks.jsx";
 import {
   buildMonthDays,
   eventToReminderLine,
@@ -497,8 +498,8 @@ function App() {
                 <div className="analysis-content">
                   <section><h3>Summary</h3><p>{activeAnalysis.summary}</p></section>
                   <section><h3>Weekly summary</h3><p>{activeAnalysis.weeklySummary}</p></section>
-                  <section><h3>Tasks</h3>{activeAnalysis.tasks?.length ? activeAnalysis.tasks.map((task, index) => <div className="task-pill" key={`${task.title}-${index}`}><strong>{task.title}</strong><small>{task.priority} priority - {task.urgency} urgency - {task.estimatedMinutes} min</small></div>) : <p className="empty-state">No tasks extracted.</p>}</section>
-                  <section><h3>Schedule drafts</h3>{activeAnalysis.scheduleDrafts?.length ? activeAnalysis.scheduleDrafts.map((draft, index) => <div className="draft-card" key={`${draft.title}-${index}`}><strong>{draft.title}</strong><small>{format(parseISO(draft.startsAt), "MMM d, p")} to {format(parseISO(draft.endsAt), "p")}</small><p>{draft.rationale}</p></div>) : <p className="empty-state">No schedule drafts produced.</p>}</section>
+                  <PlanningTasks analysis={activeAnalysis} />
+                  <section><h3>Schedule drafts</h3>{activeAnalysis.contract && <p>Times in {activeAnalysis.contract.plan.timezone}. Review before applying.</p>}{activeAnalysis.scheduleDrafts?.length ? activeAnalysis.scheduleDrafts.map((draft, index) => <div className="draft-card" key={`${draft.title}-${index}`}><strong>{draft.title}</strong><small>{new Intl.DateTimeFormat(undefined, { timeZone: activeAnalysis.contract?.plan.timezone || settings.timezone, dateStyle: "medium", timeStyle: "short" }).formatRange(new Date(draft.startsAt), new Date(draft.endsAt))}</small><p>{draft.rationale}</p></div>) : <p className="empty-state">No schedule drafts produced.</p>}</section>
                   {activeAnalysis.cautions?.length > 0 && <section><h3>Cautions</h3>{activeAnalysis.cautions.map((item) => <p className="caution" key={item}>{item}</p>)}</section>}
                   <button className="primary-button full-width" type="button" onClick={applyScheduleDrafts} disabled={!activeAnalysis.scheduleDrafts?.length || isApplying || activeAnalysis.applied}><CheckCircle2 size={16} />{isApplying ? "Applying..." : activeAnalysis.applied ? "Drafts applied" : "Apply Drafts"}</button>
                 </div>

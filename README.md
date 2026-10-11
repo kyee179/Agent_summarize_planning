@@ -125,7 +125,7 @@ See [docs/DATA_SCHEMA.md](docs/DATA_SCHEMA.md).
 ```text
 .
 |-- electron/              # Electron main process and preload script
-|-- server/                # Express API and JSON storage
+|-- server/                # Express API, SQLite, and planning contracts
 |-- src/                   # React frontend
 |-- docs/                  # API and data documentation
 |-- .github/               # CI, release workflow, issue templates
@@ -138,9 +138,16 @@ See [docs/DATA_SCHEMA.md](docs/DATA_SCHEMA.md).
 - Add recurring-event expansion in the UI
 - Add drag-and-drop event movement
 - Add import/export for `.ics` calendar files
-- Add conflict-aware scheduling and typed task/evidence records
+- Add deterministic scheduling against calendar commitments (versioned task/evidence/estimate/plan contracts are implemented)
 - Add AI planning features after the core calendar is stable
 
 ## License
 
 MIT
+
+## Learning walkthroughs
+
+- [Step 1: local API security and SQLite](docs/STEP_01.md)
+- [Step 2: task, evidence, estimate, and planning contracts](docs/STEP_02.md)
+
+Run `pnpm schemas:export` after editing the runtime schema definitions. Schema export parity is checked by the test suite. The review panel shows source excerpts, uncertain effort ranges, and unknown deadlines. New analyses use a validated canonical contract; calendar writes still require Apply Drafts.

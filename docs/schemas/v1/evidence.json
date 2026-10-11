@@ -1,0 +1,176 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://calendar-app.local/schemas/v1/evidence.json",
+  "title": "Calendar evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "sourceType",
+    "sourceId",
+    "sourceVersion",
+    "locator",
+    "excerpt",
+    "observedAt",
+    "sourceTimestamp",
+    "verification",
+    "facts"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "\\S"
+    },
+    "sourceType": {
+      "enum": [
+        "journal",
+        "user",
+        "calendar",
+        "document",
+        "web",
+        "activity",
+        "history",
+        "model"
+      ]
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "\\S"
+    },
+    "sourceVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "\\S"
+    },
+    "locator": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "http-url",
+          "maxLength": 4096
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "excerpt": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "pattern": "\\S"
+    },
+    "observedAt": {
+      "type": "string",
+      "format": "instant"
+    },
+    "sourceTimestamp": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "instant"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "verification": {
+      "enum": [
+        "unverified",
+        "source_matched",
+        "user_confirmed"
+      ]
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "value"
+            ],
+            "properties": {
+              "field": {
+                "const": "deadline"
+              },
+              "value": {
+                "type": "string",
+                "format": "instant"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "value"
+            ],
+            "properties": {
+              "field": {
+                "const": "status"
+              },
+              "value": {
+                "enum": [
+                  "open",
+                  "in_progress",
+                  "blocked",
+                  "completed",
+                  "cancelled"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "value"
+            ],
+            "properties": {
+              "field": {
+                "const": "effort_minutes"
+              },
+              "value": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 525600
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "value"
+            ],
+            "properties": {
+              "field": {
+                "const": "importance"
+              },
+              "value": {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "maxItems": 20
+    }
+  }
+}

@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync, backup } = require("node:sqlite");
 const { defaultData, ensureShape } = require("./defaults.cjs");
+const { assertAnalysis, assertEvidenceCurrent } = require("./contracts/analysis.cjs");
 
 function conflict(message) {
   return Object.assign(new Error(message), { status: 409 });
@@ -34,6 +35,11 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
     return journal;
   }
   function putAnalysis(analysis) {
+    // Legacy imports remain readable. New contract records are validated before persistence.
+    if (analysis.contract !== undefined) {
+      assertAnalysis(analysis);
+      assertEvidenceCurrent(analysis.contract, (id) => parse(db.prepare("SELECT data FROM journals WHERE id=?").get(id)));
+    }
     db.prepare(`INSERT INTO analyses(journal_id, id, data) VALUES (?, ?, ?)
       ON CONFLICT(journal_id) DO UPDATE SET id=excluded.id, data=excluded.data`)
       .run(analysis.journalId, analysis.id, JSON.stringify(analysis));
@@ -127,7 +133,7 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
         return db.prepare("DELETE FROM journals WHERE id=?").run(id).changes > 0;
       });
     },
-    saveJournalAnalysis: putAnalysis,
+    saveJournalAnalysis: (analysis) => transaction(() => putAnalysis(analysis)),
     getJournalAnalysis: (id) => parse(db.prepare("SELECT data FROM analyses WHERE journal_id=?").get(id)),
     getAppliedBatch: (id) => parse(db.prepare("SELECT data FROM applied_batches WHERE analysis_id=?").get(id)),
     applyAnalysis(journalId, analysisId, buildEvents) {

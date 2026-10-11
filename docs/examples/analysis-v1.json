@@ -1,0 +1,133 @@
+{
+  "provider": "local",
+  "model": "rule-based-v1",
+  "summary": "Found 1 planning signal across the journal text.",
+  "weeklySummary": "This week mainly involved project work. 1 possible follow-up task were detected.",
+  "cautions": [
+    "Local fallback uses tentative keyword estimates; deadlines remain unknown and importance is inferred.",
+    "Draft blocks have not been checked against calendar commitments. Review before applying."
+  ],
+  "contract": {
+    "schemaVersion": 1,
+    "evidence": [
+      {
+        "id": "e:0:0",
+        "sourceType": "journal",
+        "sourceId": "example-journal",
+        "sourceVersion": "ece54c869f2962e828c4ba420590ee758aa5ff12973c8af9be19639706368902",
+        "locator": null,
+        "excerpt": "I need to finish the project",
+        "observedAt": "2026-10-11T00:00:00.000Z",
+        "sourceTimestamp": "2026-10-11T00:00:00.000Z",
+        "verification": "source_matched",
+        "facts": []
+      }
+    ],
+    "tasks": [
+      {
+        "id": "task:1",
+        "title": "I need to finish the project",
+        "description": "I need to finish the project",
+        "status": "open",
+        "evidenceIds": [
+          "e:0:0"
+        ],
+        "importance": {
+          "level": "medium",
+          "basis": "inferred",
+          "reason": "Detected from journal wording and planning keywords.",
+          "evidenceIds": [
+            "e:0:0"
+          ]
+        },
+        "deadline": null,
+        "estimateId": "estimate:1",
+        "dependsOn": [],
+        "clarificationQuestions": [
+          "Confirm the remaining work and effort estimate.",
+          "Is there an explicit deadline or dependency?"
+        ]
+      }
+    ],
+    "estimates": [
+      {
+        "id": "estimate:1",
+        "taskId": "task:1",
+        "scope": "next_session",
+        "basis": "local_heuristic",
+        "effortMinutes": {
+          "low": 45,
+          "expected": 90,
+          "high": 180
+        },
+        "confidence": "low",
+        "evidenceIds": [],
+        "assumptions": [
+          "Keyword estimate for one work session; not a measured duration or a researched fact."
+        ],
+        "rationale": "Provisional effort from the local keyword baseline; confirm scope before applying."
+      }
+    ],
+    "plan": {
+      "id": "plan:1",
+      "state": "proposal",
+      "timezone": "Asia/Shanghai",
+      "targetDate": "2026-10-11",
+      "bufferMinutes": 15,
+      "availability": [
+        {
+          "startsAt": "20:00",
+          "endsAt": "24:00"
+        }
+      ],
+      "blocks": [
+        {
+          "id": "block:1",
+          "taskId": "task:1",
+          "estimateId": "estimate:1",
+          "startsAt": "2026-10-11T12:00:00.000Z",
+          "endsAt": "2026-10-11T13:30:00.000Z",
+          "effortMinutes": 90,
+          "rationale": "Provisional effort from the local keyword baseline; confirm scope before applying.",
+          "calendarType": "personal",
+          "notifyMinutesBefore": 15,
+          "notificationFormat": "Desktop notification"
+        }
+      ],
+      "unscheduled": [],
+      "warnings": [
+        "Calendar conflicts and dependencies need the next scheduling stage."
+      ]
+    }
+  },
+  "tasks": [
+    {
+      "id": "task:1",
+      "title": "I need to finish the project",
+      "priority": "medium",
+      "urgency": "unknown",
+      "estimatedMinutes": 90,
+      "confidence": "low",
+      "reason": "Detected from journal wording and planning keywords."
+    }
+  ],
+  "scheduleDrafts": [
+    {
+      "id": "block:1",
+      "taskId": "task:1",
+      "estimateId": "estimate:1",
+      "title": "I need to finish the project",
+      "startsAt": "2026-10-11T12:00:00.000Z",
+      "endsAt": "2026-10-11T13:30:00.000Z",
+      "calendarType": "personal",
+      "notifyMinutesBefore": 15,
+      "notificationFormat": "Desktop notification",
+      "source": "journal analysis",
+      "rationale": "Provisional effort from the local keyword baseline; confirm scope before applying.",
+      "confidence": "low"
+    }
+  ],
+  "id": "example-analysis",
+  "journalId": "example-journal",
+  "createdAt": "2026-10-11T00:00:00.000Z"
+}

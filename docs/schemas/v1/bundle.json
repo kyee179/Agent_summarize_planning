@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://calendar-app.local/schemas/v1/bundle.json",
+  "title": "Calendar bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "evidence",
+    "tasks",
+    "estimates",
+    "plan"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidence": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "https://calendar-app.local/schemas/v1/evidence.json"
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "https://calendar-app.local/schemas/v1/task.json"
+      }
+    },
+    "estimates": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "https://calendar-app.local/schemas/v1/estimate.json"
+      }
+    },
+    "plan": {
+      "$ref": "https://calendar-app.local/schemas/v1/plan.json"
+    }
+  }
+}

@@ -27,10 +27,12 @@
     "test:server": "node --test tests/*.test.cjs",
     "backup:db": "node scripts/backup.cjs",
     "smoke:desktop": "node scripts/smoke-desktop.cjs",
-    "smoke:web": "node scripts/smoke-web.cjs"
+    "smoke:web": "node scripts/smoke-web.cjs",
+    "schemas:export": "node scripts/export-schemas.cjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "ajv": "8.20.0",
     "cors": "latest",
     "date-fns": "latest",
     "express": "latest",

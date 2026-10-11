@@ -5,6 +5,8 @@ const { loadEnvironment } = require("./environment.cjs");
 const { localApiSecurity } = require("./security.cjs");
 const { createStore } = require("./store.cjs");
 const { analyzeJournal } = require("./journalAnalyzer.cjs");
+const { assertBundle } = require("./contracts/validate.cjs");
+const { assertAnalysis, assertEvidenceCurrent, projectContract } = require("./contracts/analysis.cjs");
 
 const VALID_TYPES = new Set(["personal", "study", "vacation", "holiday", "birthday", "other"]);
 const VALID_REPEAT = new Set(["none", "daily", "weekly", "monthly", "yearly"]);
@@ -126,6 +128,13 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
   app.put("/api/settings", (req, res) => {
     const allowed = ["timezone", "locale", "weekStartsOn", "defaultNotifyMinutesBefore", "aiProvider", "dailyAiRequestLimit", "defaultAvailability"];
     const patch = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
+    if (patch.timezone !== undefined || patch.defaultAvailability !== undefined) {
+      const settings = { ...store.getSettings(), ...patch };
+      assertBundle({ schemaVersion: 1, evidence: [], tasks: [], estimates: [], plan: {
+        id: "settings", state: "proposal", timezone: settings.timezone, targetDate: "2026-01-01", bufferMinutes: 15,
+        availability: settings.defaultAvailability, blocks: [], unscheduled: [], warnings: []
+      } });
+    }
     res.json(store.updateSettings(patch));
   });
 
@@ -193,17 +202,24 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
   app.get("/api/journals/:id/analysis", (req, res) => {
     const analysis = store.getJournalAnalysis(req.params.id);
     if (!analysis) return res.status(404).json({ error: "Analysis not found" });
-    res.json({ ...analysis, applied: Boolean(store.getAppliedBatch(analysis.id)) });
+    res.json({ ...analysis, contractStatus: analysis.contract ? "versioned" : "legacy", applied: Boolean(store.getAppliedBatch(analysis.id)) });
   });
 
   app.post("/api/journals/:id/apply-drafts", (req, res) => {
     if (typeof req.body.analysisId !== "string" || !req.body.analysisId) return res.status(400).json({ error: "analysisId is required" });
     if (!store.getJournal(req.params.id)) return res.status(404).json({ error: "Journal not found" });
     const result = store.applyAnalysis(req.params.id, req.body.analysisId, (analysis) => {
-      if (!Array.isArray(analysis.scheduleDrafts) || !analysis.scheduleDrafts.length || analysis.scheduleDrafts.length > 100) {
+      let drafts = analysis.scheduleDrafts;
+      if (analysis.contract !== undefined) {
+        assertAnalysis(analysis);
+        // This runs under the batch writer lock, including checks on related journal evidence.
+        assertEvidenceCurrent(analysis.contract, store.getJournal);
+        drafts = projectContract(analysis.contract).scheduleDrafts;
+      }
+      if (!Array.isArray(drafts) || !drafts.length || drafts.length > 100) {
         throw Object.assign(new Error("Analysis must contain between 1 and 100 drafts"), { status: 400 });
       }
-      return analysis.scheduleDrafts.map((draft, index) => {
+      return drafts.map((draft, index) => {
         if (!draft || typeof draft !== "object" || Array.isArray(draft)) throw Object.assign(new Error(`Draft ${index + 1} is invalid`), { status: 400 });
         const payload = {
           title: draft.title, startsAt: draft.startsAt, endsAt: draft.endsAt,
@@ -215,7 +231,8 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
         };
         const errors = validateEventPayload(payload);
         if (errors.length) throw Object.assign(new Error(`Draft ${index + 1}: ${errors.join(", ")}`), { status: 400 });
-        return { ...normalizeEvent(payload), id: crypto.randomUUID(), sourceAnalysisId: analysis.id };
+        return { ...normalizeEvent(payload), id: crypto.randomUUID(), sourceAnalysisId: analysis.id,
+          ...(analysis.contract ? { sourceTaskId: draft.taskId, sourceEstimateId: draft.estimateId, planningSchemaVersion: analysis.contract.schemaVersion } : {}) };
       });
     });
     res.status(result.replayed ? 200 : 201).json(result);
@@ -231,14 +248,15 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
       journal,
       relatedJournals,
       settings,
-      availability: req.body.availability || settings.defaultAvailability
+      availability: req.body.availability !== undefined ? req.body.availability : settings.defaultAvailability
     });
     const analysis = {
+      ...result,
       id: crypto.randomUUID(),
       journalId: journal.id,
-      createdAt: new Date().toISOString(),
-      ...result
+      createdAt: new Date().toISOString()
     };
+    assertAnalysis(analysis);
     // Reject a result if its source was edited or deleted while the provider ran.
     const current = store.getJournal(journal.id);
     if (!current || current.updatedAt !== journal.updatedAt) return res.status(409).json({ error: "Journal changed during analysis; try again" });
@@ -247,7 +265,8 @@ function createApp({ store, apiToken, allowedOrigins = [] }) {
 
   app.use((error, _req, res, _next) => {
     const status = error.status || 500;
-    res.status(status).json({ error: status < 500 ? error.message : "Internal server error" });
+    res.status(status).json({ error: status < 500 ? error.message : "Internal server error",
+      ...(status === 422 && Array.isArray(error.issues) ? { issues: error.issues } : {}) });
   });
 
   return app;
