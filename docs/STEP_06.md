@@ -72,6 +72,8 @@ The live run took about 179 seconds total. Each result fell back within the boun
 
 The Actions workflows have read-only repository permissions and bounded job durations. Frozen-lockfile installation and `.node-version` keep the tested runtime reproducible. Branch protection is a repository setting: require `quality-gates (ubuntu-latest)` and `quality-gates (windows-latest)` before merging. The workflow does not itself enable that setting. See [GitHub's required status checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-status-checks-before-merging).
 
+The first hosted run passed tests/evaluation/build on both operating systems, but Linux Electron launch identified an incorrectly configured Chromium SUID helper. `scripts/prepare-linux-sandbox.cjs` configures only the downloaded `chrome-sandbox` file inside the checkout's installed dependencies as root/4755 on the disposable Linux GitHub runner. It refuses execution on other platforms/environments, uses fixed executable/argument calls, and validates the result. CI keeps Chromium sandboxing enabled.
+
 No signed installer or automatic update to the original Calendar_App was deployed. Its app identity and original JSON/user-data migration still need a distribution compatibility plan before shipping Calendar App 2.0 as a replacement.
 
 ## 5. Read a trace from request to result
