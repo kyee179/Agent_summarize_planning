@@ -711,3 +711,15 @@ button:disabled {
     max-height: none;
   }
 }
+.integration-settings { grid-column: 1 / -1; padding: 24px; background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; }
+.integration-settings details { margin: 16px 0; border-top: 1px solid #e2e8f0; padding-top: 14px; }
+.integration-settings summary { cursor: pointer; font-weight: 600; }
+.integration-settings button { margin: 8px 8px 8px 0; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; cursor: pointer; }
+.integration-settings button:disabled { opacity: .5; cursor: default; }
+.integration-settings label { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+.consent-row, .integration-settings .consent-row { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; font-size: 13px; font-weight: 400; margin: 10px 0; }
+.consent-row input { width: auto; flex: 0 0 auto; margin-top: 3px; }
+.integration-settings fieldset, .journal-editor fieldset { border: 1px solid #cbd5e1; border-radius: 8px; margin: 12px 0; }
+.integration-settings blockquote { margin: 14px 0; padding: 12px; background: #f8fafc; border-left: 3px solid #2563eb; overflow-wrap: anywhere; }
+.integration-settings input, .integration-settings textarea { max-width: 100%; }
+.journal-editor .consent-row { flex-direction: row; align-items: flex-start; font-size: 13px; font-weight: 400; }

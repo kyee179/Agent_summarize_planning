@@ -16,4 +16,13 @@ if (!valid) {
   fs.writeFileSync(file, /^LOCAL_API_TOKEN=.*$/m.test(content)
     ? content.replace(/^LOCAL_API_TOKEN=.*$/m, entry) : `${content}\n${entry}\n`);
 }
+const encryption = Buffer.from(process.env.INTEGRATION_ENCRYPTION_KEY || '', 'base64');
+if (!process.env.INTEGRATION_ENCRYPTION_KEY) {
+  const content = fs.readFileSync(file, 'utf8');
+  const entry = `INTEGRATION_ENCRYPTION_KEY=${crypto.randomBytes(32).toString('base64')}`;
+  fs.writeFileSync(file, /^INTEGRATION_ENCRYPTION_KEY=.*$/m.test(content)
+    ? content.replace(/^INTEGRATION_ENCRYPTION_KEY=.*$/m, entry) : `${content}\n${entry}\n`);
+} else if (encryption.length !== 32) {
+  throw new Error('INTEGRATION_ENCRYPTION_KEY must encode 32 bytes. Restore the original key; do not rotate it while connected.');
+}
 console.log("Local .env is ready. Credentials are never printed or exposed to Vite.");

@@ -21,6 +21,7 @@ import {
 import { api } from "./api.js";
 import { PlanningTasks } from "./components/PlanningTasks.jsx";
 import { AnalysisSummaries } from "./components/AnalysisSummaries.jsx";
+import { IntegrationSettings } from "./components/IntegrationSettings.jsx";
 import {
   buildMonthDays,
   eventToReminderLine,
@@ -104,6 +105,7 @@ function App() {
   const [form, setForm] = useState(createEmptyForm(new Date()));
   const [journalForm, setJournalForm] = useState(createEmptyJournal("daily"));
   const [activeAnalysis, setActiveAnalysis] = useState(null);
+  const [analysisSources, setAnalysisSources] = useState({ includeActivity: false, allowMemory: false, allowWebResearch: false });
   const [isEditing, setIsEditing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
@@ -173,6 +175,7 @@ function App() {
 
     const now = Date.now();
     events.forEach((event) => {
+      if (event.readonly) return;
       const notifyAt = new Date(event.startsAt).getTime() - Number(event.notifyMinutesBefore || 0) * 60_000;
       const key = `${event.id}:${notifyAt}`;
       if (notifyAt <= now && now - notifyAt < 60_000 && !notifiedEvents.current.has(key)) {
@@ -189,6 +192,7 @@ function App() {
   }
 
   function editEvent(event) {
+    if (event.readonly) { setStatus('Google busy time is read only. Refresh it in Sources and connections.'); return; }
     setForm(formFromEvent(event));
     setIsEditing(true);
   }
@@ -271,7 +275,7 @@ function App() {
     if (!saved) return;
     setIsAnalyzing(true);
     try {
-      const analysis = await api.analyzeJournal(saved.id);
+      const analysis = await api.analyzeJournal(saved.id, analysisSources);
       setActiveAnalysis(analysis);
       setStatus(`Analysis ready via ${analysis.provider}`);
       await loadJournals();
@@ -360,7 +364,7 @@ function App() {
 
           <div className="event-list compact-list">
             {selectedEvents.length === 0 ? <p className="empty-state">No reminders yet.</p> : selectedEvents.map((event) => (
-              <button className="event-row" type="button" key={event.id} onClick={() => editEvent(event)}>
+              <button className="event-row" type="button" key={event.id} onClick={() => editEvent(event)} title={event.readonly ? 'Google Calendar · read only' : 'Edit reminder'}>
                 <span className="color-dot" style={{ background: event.color }} />
                 <span><strong>{event.title}</strong><small>{formatTimeRange(event)}</small></span>
               </button>
@@ -441,7 +445,7 @@ function App() {
               <article className="agenda-item" key={event.id}>
                 <div className="agenda-date"><span>{format(parseISO(event.startsAt), "MMM")}</span><strong>{format(parseISO(event.startsAt), "d")}</strong></div>
                 <div className="agenda-body">
-                  <div className="agenda-title-row"><span className="color-dot" style={{ background: event.color }} /><h3>{event.title}</h3><button className="icon-button" type="button" title="Edit reminder" onClick={() => editEvent(event)}><Edit3 size={16} /></button></div>
+                  <div className="agenda-title-row"><span className="color-dot" style={{ background: event.color }} /><h3>{event.title}</h3>{!event.readonly && <button className="icon-button" type="button" title="Edit reminder" onClick={() => editEvent(event)}><Edit3 size={16} /></button>}</div>
                   <p><Clock size={14} /> {formatTimeRange(event)}</p>
                   {event.location && <p><MapPin size={14} /> {event.location}</p>}
                   <small>{eventToReminderLine(event)}</small>
@@ -487,6 +491,11 @@ function App() {
                 </div>
               </div>
 
+              <fieldset><legend>Sources permitted for this analysis</legend>
+                <label className="consent-row"><input type="checkbox" checked={analysisSources.includeActivity} onChange={(e) => setAnalysisSources({ ...analysisSources, includeActivity: e.target.checked })} />Include imported activity from this journal’s date</label>
+                <label className="consent-row"><input type="checkbox" checked={analysisSources.allowMemory} onChange={(e) => setAnalysisSources({ ...analysisSources, allowMemory: e.target.checked })} />Retrieve personal memory; excerpts may be sent to the selected AI provider</label>
+                <label className="consent-row"><input type="checkbox" checked={analysisSources.allowWebResearch} onChange={(e) => setAnalysisSources({ ...analysisSources, allowWebResearch: e.target.checked })} />Allow up to two agent queries to Brave Search; queries may include task context</label>
+              </fieldset>
               <div className="editor-actions">
                 {journalForm.id && <button className="danger-button" type="button" onClick={deleteJournal}><Trash2 size={16} />Delete</button>}
                 <button className="today-button" type="submit"><Save size={16} />Save</button>
@@ -508,6 +517,7 @@ function App() {
                 </div>
               )}
             </aside>
+            <IntegrationSettings onCalendarChanged={() => loadEvents()} />
           </section>
         )}
       </section>

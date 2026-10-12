@@ -47,7 +47,11 @@ export function formatTimeRange(event) {
 }
 
 export function getEventsForDay(events, day) {
-  return events.filter((event) => isSameDay(parseISO(event.startsAt), day));
+  const start = new Date(day); start.setHours(0, 0, 0, 0);
+  const end = new Date(start); end.setDate(end.getDate() + 1);
+  return events.filter((event) => event.readonly
+    ? Date.parse(event.startsAt) < end.getTime() && Date.parse(event.endsAt) > start.getTime()
+    : isSameDay(parseISO(event.startsAt), day));
 }
 
 export function getDayState(day, activeDate) {

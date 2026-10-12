@@ -7,6 +7,14 @@ function isAllowedRequest(route, method) {
   const base = /^\/api\/(time|settings|events|journals)$/.test(url.pathname);
   const item = /^\/api\/(events|journals)\/[^/]+$/.test(url.pathname);
   const action = /^\/api\/journals\/[^/]+\/(analysis|analyze|apply-drafts)$/.test(url.pathname);
+  const integrationRoutes = {
+    '/api/integrations/status': ['GET'], '/api/integrations/activity/buckets': ['GET'], '/api/integrations/activity/import': ['POST'],
+    '/api/integrations/activity': ['DELETE'], '/api/integrations/google/connect': ['POST'], '/api/integrations/google/cancel': ['POST'],
+    '/api/integrations/google/calendars': ['GET'], '/api/integrations/google/sync': ['POST'], '/api/integrations/google': ['DELETE'],
+    '/api/memory': ['GET', 'POST'], '/api/memory/index': ['POST'], '/api/memory/search': ['POST'], '/api/research/search': ['POST']
+  };
+  if (integrationRoutes[url.pathname]?.includes(method)) return true;
+  if (/^\/api\/memory\/memory%3A[0-9a-f-]{36}$/i.test(url.pathname) && method === 'DELETE') return true;
   return (base && ["GET", "POST", "PUT"].includes(method)) ||
     (item && ["PUT", "DELETE"].includes(method)) ||
     (action && (url.pathname.endsWith("/analysis") ? method === "GET" : method === "POST"));

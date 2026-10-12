@@ -86,6 +86,10 @@ const definitions = {
     tasks: { type: "array", maxItems: 8, items: ref("task") },
     estimates: { type: "array", maxItems: 8, items: ref("estimate") }
   }),
+  research: object({
+    id, title: text(300), url: { type: "string", format: "http-url", maxLength: 4096 }, excerpt: text(2000), retrievedAt: instant,
+    confidence: { const: "low" }, confidenceReason: text(), claimStatus: { const: "snippet_only" }
+  }),
   agentWorkflow: object({
     version: { const: 1 }, promptVersion: text(32), promptHash: { type: "string", pattern: "^[a-f0-9]{64}$" },
     skills: { type: "array", minItems: 2, maxItems: 2, items: object({
@@ -100,7 +104,7 @@ const definitions = {
     summaryEvidenceIds: ids(), weeklySummaryEvidenceIds: ids(),
     trace: { type: "array", maxItems: 16, items: object({
       turn: { type: "integer", minimum: 1, maximum: 12 },
-      tool: { enum: ["read_evidence", "get_planning_context", "preview_plan", "finish_analysis", "unknown"] },
+      tool: { enum: ["read_evidence", "get_planning_context", "preview_plan", "finish_analysis", "search_personal_memory", "research_web", "unknown"] },
       status: { enum: ["ok", "error"] }
     }) }
   }),

@@ -17,7 +17,7 @@ describe("calendar request transport", () => {
     const fetch = vi.fn().mockResolvedValue({ status: 200, json: async () => [] });
     vi.stubGlobal("fetch", fetch);
     await api.listEvents();
-    expect(fetch.mock.calls[0][0]).toBe("/api/events?");
+    expect(fetch.mock.calls[0][0]).toBe("/api/events?includeGoogle=true");
     expect(fetch.mock.calls[0][1].headers).toEqual({ "Content-Type": "application/json" });
   });
 

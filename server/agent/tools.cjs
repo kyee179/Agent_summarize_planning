@@ -20,13 +20,21 @@ const tools = [
   { name: "finish_analysis", description: "Finish using only the latest successful preview ID. The user reviews it before calendar writes.",
     parameters: object({ previewId: { type: "string", pattern: "^preview:[1-9][0-9]*$", maxLength: 32 } }) }
 ];
+const optionalTools = [
+  { name: "search_personal_memory", description: "Search authorized local journals and notes. Maximum two searches. Relevance is not confidence; sources may be stale or partial.", parameters: object({ query: { type: "string", minLength: 1, maxLength: 400 } }) },
+  { name: "research_web", description: "Send an authorized query to Brave Search. Maximum two searches. Results are unverified snippets with low confidence, never personal deadlines or confirmed duration facts.", parameters: object({ query: { type: "string", minLength: 1, maxLength: 400 } }) }
+];
+function permittedTools(context) {
+  return [...tools, ...optionalTools.filter((tool) => tool.name === "search_personal_memory" ? context.memorySearch : context.webResearch)];
+}
 const ajv = new Ajv({ strict: false, validateFormats: false, allErrors: true });
-const validators = new Map(tools.map((tool) => [tool.name, ajv.compile(tool.parameters)]));
+const validators = new Map([...tools, ...optionalTools].map((tool) => [tool.name, ajv.compile(tool.parameters)]));
 const problem = (path, message) => { throw new ContractError([{ path, code: "workflow", message }]); };
 
 function createToolSession(context, provider, model) {
   const evidence = structuredClone(context.trustedEvidence);
   const seen = new Set();
+  const research = [], allowed = new Set(permittedTools(context).map((tool) => tool.name)), counts = new Map();
   let read = false, inspected = false, preview = null, serial = 0;
   const expectedPlan = context.expectedPlan;
   const plan = { id: "plan:1", state: "proposal", ...expectedPlan, blocks: [], unscheduled: [], warnings: [] };
@@ -38,13 +46,34 @@ function createToolSession(context, provider, model) {
       return `finish_analysis with previewId ${preview.previewId}; you may revise through preview_plan first`;
     },
     invalidatePreview() { preview = null; },
-    execute(name, args) {
+    execute(name, args, signal) {
       if (name === "preview_plan") preview = null;
       const validate = validators.get(name);
-      if (!validate) problem("/tool", "Tool is not permitted");
+      if (!validate || !allowed.has(name)) problem("/tool", "Tool is not permitted");
       if (!validate(args)) throw new ContractError(validate.errors.slice(0, 8).map(({ instancePath, keyword }) => ({
         path: instancePath || "/", code: keyword, message: "Arguments must match the declared tool schema"
       })));
+      if (["search_personal_memory", "research_web"].includes(name)) {
+        if (!read || !inspected) problem("/tool", "Read evidence and planning context before searching");
+        if ((counts.get(name) || 0) >= 2) problem("/tool", "Optional tool search budget exhausted");
+        counts.set(name, (counts.get(name) || 0) + 1); preview = null;
+        const search = name === "search_personal_memory" ? context.memorySearch : context.webResearch;
+        return Promise.resolve().then(() => search(args, signal)).then((result) => {
+          if (signal?.aborted) problem("/tool", "Search cancelled");
+          const added = [];
+          for (const item of result.evidence || []) {
+            assertSchema("evidence", item);
+            if (evidence.length >= 100) break;
+            if (evidence.some((e) => e.id === item.id)) continue;
+            evidence.push(structuredClone(item)); seen.add(item.id); added.push(item);
+          }
+          if (name === "research_web") for (const item of result.results || []) {
+            if (added.some((e) => e.id === item.id) && !research.some((r) => r.id === item.id)) research.push(item);
+          }
+          return { output: { evidence: added, mode: result.mode || "web_snippets", warning: result.warning || null,
+            results: name === "research_web" ? result.results : undefined, truncated: added.length < (result.evidence || []).length } };
+        }).catch(() => problem("/tool", "Search unavailable; continue with existing evidence"));
+      }
       if (name === "read_evidence") {
         const items = evidence.slice(args.offset, args.offset + args.limit);
         items.forEach((item) => seen.add(item.id)); read = true;
@@ -79,6 +108,7 @@ function createToolSession(context, provider, model) {
         assertBundle(contract, { trustedEvidence: evidence, expectedPlan });
         const scheduled = scheduleBundle(contract, { events: context.existingEvents || [], notBefore: context.notBefore ?? null });
         const analysis = contractAnalysis({ provider, model, summary: proposal.summary, weeklySummary: proposal.weeklySummary, cautions: proposal.cautions }, scheduled.contract);
+        if (research.length) analysis.research = structuredClone(research);
         assertAnalysis(analysis);
         const previewId = `preview:${++serial}`;
         preview = { previewId, analysis: structuredClone(analysis), summaryEvidenceIds: [...proposal.summaryEvidenceIds], weeklySummaryEvidenceIds: [...proposal.weeklySummaryEvidenceIds] };
@@ -89,4 +119,4 @@ function createToolSession(context, provider, model) {
     }
   };
 }
-module.exports = { tools, createToolSession };
+module.exports = { tools, optionalTools, permittedTools, createToolSession };

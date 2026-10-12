@@ -4,6 +4,7 @@ const express = require("express");
 const { loadEnvironment } = require("./environment.cjs");
 const { localApiSecurity } = require("./security.cjs");
 const { createStore } = require("./store.cjs");
+const { createIntegrations, routes: integrationRoutes } = require("./integrations/service.cjs");
 const { analyzeJournal, getPublicProviderConfig } = require("./journalAnalyzer.cjs");
 const { assertBundle, assertSchema, ContractError, isInstant, isCalendarDate, isTimezone } = require("./contracts/validate.cjs");
 const { assertAnalysis, assertEvidenceCurrent, projectContract } = require("./contracts/analysis.cjs");
@@ -97,8 +98,10 @@ function normalizeJournal(payload, existing = {}) {
   };
 }
 
-function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Date().toISOString() }) {
+function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Date().toISOString(), integrations, integrationOptions = {} }) {
   const app = express();
+  const service = integrations || createIntegrations(store, { ...integrationOptions, clock });
+  app.locals.closeIntegrations = () => service.close();
   app.disable("x-powered-by");
   app.use(localApiSecurity(apiToken, allowedOrigins));
   app.use(express.json({ limit: "2mb" }));
@@ -112,6 +115,8 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
   app.get("/health", (_req, res) => {
     res.json({ ok: true, service: "study-calendar-api" });
   });
+
+  integrationRoutes(app, store, service, clock);
 
   app.get("/api/time", (_req, res) => {
     const now = new Date();
@@ -144,7 +149,9 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
 
   app.get("/api/events", (req, res) => {
     if ([req.query.from, req.query.to].some((value) => value !== undefined && !isIsoDate(value))) return res.status(400).json({ error: "Invalid date range" });
-    res.json(store.listEvents({ from: req.query.from, to: req.query.to }));
+    const local = store.listEvents({ from: req.query.from, to: req.query.to });
+    const imported = req.query.includeGoogle === 'true' ? store.googleBusy({ from: req.query.from || '0001-01-01T00:00:00Z', to: req.query.to || '9999-12-31T23:59:59Z' }) : [];
+    res.json([...local, ...imported].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt)));
   });
 
   app.post("/api/events", (req, res) => {
@@ -220,6 +227,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
         assertAnalysis(analysis);
         // This runs under the batch writer lock, including checks on related journal evidence.
         assertEvidenceCurrent(analysis.contract, store.getJournal);
+        store.assertCalendarCoverage(planningRange(analysis.contract.plan), clock());
         drafts = projectContract(analysis.contract).scheduleDrafts;
         assertScheduleCurrent(analysis, store.listPlanningEvents(planningRange(analysis.contract.plan)), store.getSettings(), clock());
       }
@@ -265,9 +273,11 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
       bufferMinutes: 15, blocks: [], unscheduled: [], warnings: [] };
     assertSchema("plan", inputPlan);
     assertBundle({ schemaVersion: 1, evidence: [], tasks: [], estimates: [], plan: inputPlan });
+    store.assertCalendarCoverage(planningRange(inputPlan), asOf);
     const existingEvents = store.listPlanningEvents(planningRange(inputPlan));
     const relatedJournals = store.listJournals({ type: journal.type === "daily" ? "weekly" : undefined }).filter((item) => item.id !== journal.id).slice(0, 5);
     const interpreted = await analyzeJournal({
+      ...service.context(req.body, journal, settings),
       journal,
       relatedJournals,
       settings,
@@ -320,8 +330,8 @@ function startServer(options = {}) {
   const server = app.listen(Number(port), "127.0.0.1", () => {
     console.log(`Study Calendar API listening on http://127.0.0.1:${server.address().port}`);
   });
-  server.on("close", () => store.close());
-  server.on("error", (error) => { store.close(); console.error(`Local API startup failed: ${error.code}`); });
+  server.on("close", () => { app.locals.closeIntegrations(); store.close(); });
+  server.on("error", (error) => { app.locals.closeIntegrations(); store.close(); console.error(`Local API startup failed: ${error.code}`); });
   return server;
 }
 

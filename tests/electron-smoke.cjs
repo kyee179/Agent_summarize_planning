@@ -42,10 +42,21 @@ app.on("browser-window-created", (_event, window) => {
         let rejected = false;
         try { await call('https://evil.example/api/events'); } catch { rejected = true; }
         if (!rejected) throw new Error('External IPC route accepted');
+        const integrationStatus = await call('/api/integrations/status');
+        if (integrationStatus.status !== 200 || 'access_token' in integrationStatus.body.google) throw new Error('Integration status failed');
+        const note = await call('/api/memory', { method: 'POST', body: JSON.stringify({ title: 'Synthetic scope', content: 'Review the synthetic release checklist.' }) });
+        if (note.status !== 201) throw new Error('Memory note save failed');
+        const search = await call('/api/memory/search', { method: 'POST', body: JSON.stringify({ query: 'checklist' }) });
+        if (search.status !== 200 || search.body.mode !== 'lexical' || search.body.items.length !== 1) throw new Error('Local memory retrieval failed');
+        if ((await call('/api/memory/' + encodeURIComponent(note.body.id), { method: 'DELETE' })).status !== 204) throw new Error('Memory deletion IPC failed');
+        const journalTab = Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Journals');
+        journalTab.click();
+        for (let i = 0; i < 40 && !document.querySelector('[aria-label="Sources and connections"]'); i++) await new Promise(resolve => setTimeout(resolve, 50));
+        if (!document.querySelector('[aria-label="Sources and connections"]') || !document.body.textContent.includes('Sources permitted for this analysis')) throw new Error('Integration setup UI failed');
         return { events: first.body.events.length, pageRendered: document.querySelector('main') !== null };
       })()`);
       if (!result.pageRendered) throw new Error("React did not render");
-      console.log("Desktop smoke passed: recurring-event scheduling, stale-calendar rejection, SQLite, main/preload/renderer IPC, batch replay, isolation, and rendered UI.");
+      console.log("Desktop smoke passed: scheduling, stale-calendar rejection, SQLite, IPC, batch replay, isolation, local memory, and integration setup UI.");
       app.quit();
     } catch (error) {
       console.error(`Desktop smoke failed: ${error.message}`);

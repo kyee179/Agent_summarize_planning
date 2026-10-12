@@ -59,6 +59,16 @@ function contractAnalysis(result, contract, context = {}) {
 function assertAnalysis(analysis, context = {}) {
   if (!analysis.contract) throw new ContractError([{ path: "/contract", code: "required", message: "New analyses need a versioned planning contract" }]);
   assertBundle(analysis.contract, context);
+  if (analysis.research !== undefined) {
+    if (!Array.isArray(analysis.research) || analysis.research.length > 6) throw new ContractError([{ path: "/research", code: "shape", message: "Research must contain at most six source snippets" }]);
+    for (const item of analysis.research) {
+      assertSchema("research", item);
+      const evidence = analysis.contract.evidence.find((e) => e.id === item.id);
+      if (!evidence || evidence.sourceType !== "web" || evidence.locator !== item.url || evidence.excerpt !== item.excerpt || evidence.verification !== "unverified" || evidence.facts.length) {
+        throw new ContractError([{ path: "/research", code: "reference", message: "Research must match unverified workflow evidence" }]);
+      }
+    }
+  }
   if (analysis.scheduling !== undefined) assertSchema("scheduling", analysis.scheduling);
   if (analysis.agentWorkflow !== undefined) {
     assertSchema("agentWorkflow", analysis.agentWorkflow);

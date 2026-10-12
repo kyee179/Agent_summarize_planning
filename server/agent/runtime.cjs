@@ -1,6 +1,6 @@
 const { performance } = require("node:perf_hooks");
 const { ContractError } = require("../contracts/validate.cjs");
-const { tools, createToolSession } = require("./tools.cjs");
+const { permittedTools, createToolSession } = require("./tools.cjs");
 const { buildMessages } = require("./skills.cjs");
 
 // Server policy: requests, prompts, provider replies, and tool results cannot increase it.
@@ -43,6 +43,7 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
   const stats = { turns: 0, toolCalls: 0, toolErrors: 0, elapsedMs: 0, requestBytes: 0, trace: [] };
   const { messages, promptHash } = buildMessages(skills, context, limits);
   const session = createToolSession(context, context.provider, context.model);
+  const tools = permittedTools(context);
   const callIds = new Set();
   const remaining = () => {
     const time = limits.timeoutMs - (now() - start);
@@ -81,7 +82,11 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
         if (call.name === "preview_plan") session.invalidatePreview();
         let args;
         try { args = JSON.parse(call.arguments); } catch { throw new ContractError([{ path: "/", code: "json", message: "Arguments must be valid JSON" }]); }
-        result = session.execute(call.name, args);
+        const controller = new AbortController(); let toolTimer;
+        try {
+          result = await Promise.race([Promise.resolve().then(() => session.execute(call.name, args, controller.signal)),
+            new Promise((_, reject) => { toolTimer = setTimeout(() => { controller.abort(); reject(new WorkflowError("timeout")); }, remaining()); })]);
+        } finally { clearTimeout(toolTimer); }
         sizeCheck(result.output, limits.maxToolResultBytes);
         stats.trace.push({ turn: stats.turns, tool: tools.some((tool) => tool.name === call.name) ? call.name : "unknown", status: "ok" });
       } catch (error) {

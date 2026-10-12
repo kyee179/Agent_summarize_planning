@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "promptVersion": "1.0.1",
+  "promptVersion": "1.1.0",
   "skills": {
-    "daily-summary": "1.0.0",
-    "task-planning": "1.0.0"
+    "daily-summary": "1.1.0",
+    "task-planning": "1.1.0"
   }
 }

@@ -70,7 +70,7 @@ function localRuleBasedAnalysis(input = {}) {
   const evidence = input.trustedEvidence || collectJournalEvidence(input);
   const selectedId = journal?.id || "input-journal-0";
   const selectedEvidence = evidence.filter((item) => item.sourceId === selectedId);
-  const detected = evidence.map((item) => ({ evidence: item, task: inferTask(item.excerpt) })).filter((item) => item.task).slice(0, 8);
+  const detected = evidence.filter((item) => item.sourceType === "journal").map((item) => ({ evidence: item, task: inferTask(item.excerpt) })).filter((item) => item.task).slice(0, 8);
   const tasks = detected.map(({ evidence: item, task }, i) => ({
     id: `task:${i + 1}`, title: task.title, description: item.excerpt, status: "open", evidenceIds: [item.id],
     importance: { level: task.priority, basis: "inferred", reason: task.reason, evidenceIds: [item.id] },
@@ -103,7 +103,7 @@ function localRuleBasedAnalysis(input = {}) {
     provider: "local",
     model: "rule-based-v1",
     summary,
-    weeklySummary: summarizeWeekly(evidence.map((item) => item.excerpt), tasks),
+    weeklySummary: summarizeWeekly(evidence.filter((item) => item.sourceType === "journal").map((item) => item.excerpt), tasks),
     cautions: [
       "Local fallback uses tentative keyword estimates; deadlines remain unknown and importance is inferred.",
       "Review proposed sessions and assumptions before applying; allocations do not imply task completion."
@@ -160,7 +160,8 @@ async function analyzeJournal(input = {}) {
   // Validate workflow constraints before consuming provider budget.
   assertBundle({ schemaVersion: 1, evidence: [], tasks: [], estimates: [],
     plan: { id: "input", state: "proposal", ...expectedPlan, blocks: [], unscheduled: [], warnings: [] } });
-  const trustedEvidence = collectJournalEvidence(input);
+  const supplementary = input.supplementalEvidence || [];
+  const trustedEvidence = [...collectJournalEvidence(input).slice(0, 100 - supplementary.length), ...supplementary];
   const context = { ...input, availability, trustedEvidence, expectedPlan };
   const skills = loadSkills();
   const providers = {

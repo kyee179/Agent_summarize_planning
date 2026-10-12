@@ -14,11 +14,27 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  integrationStatus: () => request('/api/integrations/status'),
+  activityBuckets: () => request('/api/integrations/activity/buckets'),
+  importActivity: (body) => request('/api/integrations/activity/import', { method: 'POST', body: JSON.stringify(body) }),
+  purgeActivity: () => request('/api/integrations/activity', { method: 'DELETE' }),
+  connectGoogle: () => request('/api/integrations/google/connect', { method: 'POST', body: JSON.stringify({ consent: true }) }),
+  cancelGoogle: () => request('/api/integrations/google/cancel', { method: 'POST', body: '{}' }),
+  googleCalendars: () => request('/api/integrations/google/calendars'),
+  syncGoogle: (body) => request('/api/integrations/google/sync', { method: 'POST', body: JSON.stringify(body) }),
+  disconnectGoogle: () => request('/api/integrations/google', { method: 'DELETE' }),
+  memoryNotes: () => request('/api/memory'),
+  saveMemory: (body) => request('/api/memory', { method: 'POST', body: JSON.stringify(body) }),
+  deleteMemory: (id) => request(`/api/memory/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  indexMemory: (semantic) => request('/api/memory/index', { method: 'POST', body: JSON.stringify({ consent: true, semantic }) }),
+  searchMemory: (query) => request('/api/memory/search', { method: 'POST', body: JSON.stringify({ query }) }),
+  research: (query) => request('/api/research/search', { method: 'POST', body: JSON.stringify({ query, consent: true }) }),
   getTime: () => request("/api/time"),
   getSettings: () => request("/api/settings"),
   updateSettings: (settings) => request("/api/settings", { method: "PUT", body: JSON.stringify(settings) }),
   listEvents: ({ from, to } = {}) => {
     const params = new URLSearchParams();
+    params.set('includeGoogle', 'true');
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     return request(`/api/events?${params.toString()}`);

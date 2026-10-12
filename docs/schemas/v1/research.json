@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://calendar-app.local/schemas/v1/research.json",
+  "title": "Calendar research v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "url",
+    "excerpt",
+    "retrievedAt",
+    "confidence",
+    "confidenceReason",
+    "claimStatus"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "\\S"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "\\S"
+    },
+    "url": {
+      "type": "string",
+      "format": "http-url",
+      "maxLength": 4096
+    },
+    "excerpt": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": "\\S"
+    },
+    "retrievedAt": {
+      "type": "string",
+      "format": "instant"
+    },
+    "confidence": {
+      "const": "low"
+    },
+    "confidenceReason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": "\\S"
+    },
+    "claimStatus": {
+      "const": "snippet_only"
+    }
+  }
+}

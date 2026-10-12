@@ -2,7 +2,7 @@
 
 This repository develops the personal planning agent from the existing [Calendar App](https://github.com/kyee179/Calendar_App) (MIT, starting commit `335b8f0`). Read [PROJECT_BRIEF.md](PROJECT_BRIEF.md) for the agreed product requirements and [docs/STEP_01.md](docs/STEP_01.md) for the complete first-stage code walkthrough, verification, and remaining engineering work.
 
-Stage 1 adds authenticated local API access, a trusted Electron IPC bridge, explicit environment loading, SQLite with one-time JSON migration, online backup, and atomic/idempotent draft application. The current implementation also includes versioned contracts, deterministic calendar scheduling, versioned skills, and bounded tool calling. Personal retrieval and evidence-based research remain future stages.
+Stage 1 adds authenticated local API access, a trusted Electron IPC bridge, explicit environment loading, SQLite with one-time JSON migration, online backup, and atomic/idempotent draft application. The current implementation also includes versioned contracts, deterministic scheduling, versioned skills, bounded tool calling, authorized ActivityWatch ingestion, Google Calendar read-only OAuth, local hybrid personal retrieval, and cited web research. Read [docs/STEP_05.md](docs/STEP_05.md) for setup, the code walkthrough, verification, and remaining quality evaluation work.
 
 Study Calendar is A learning-focused desktop calendar built with React, Node.js, and Electron. It displays the current date and time, shows a month calendar and agenda, stores reminders locally, saves daily/weekly journals, bookmarks precious entries, and lets users create, edit, delete, and preview notifications in this format:
 
@@ -21,7 +21,11 @@ The project is intentionally small enough to understand while still using a real
 - Basic calendar categories: personal, study, vacation, holiday, birthday, and other
 - Daily and weekly journals
 - Bookmark button for precious journals
-- AI planning drafts from journal text, with OpenAI/Gemini/Groq adapters and local fallback rules
+- AI planning drafts with GLM (default glm-4-flash), OpenAI/Gemini/Groq adapters and local fallback rules
+- Optional ActivityWatch import with AFK filtering, redaction and scoped consent
+- Google Calendar browser OAuth and selected read-only busy intervals
+- SQLite keyword memory with optional local Ollama embeddings and hybrid ranking
+- Authorized Brave Search research with visible sources and low-confidence snippets
 - Weekly summary generation from journal context
 - User-reviewed `Apply Drafts` flow before AI suggestions become calendar events- Desktop notifications when the app is open and notification permission is granted
 - Local SQLite storage through an authenticated Node.js API

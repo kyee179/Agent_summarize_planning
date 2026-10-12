@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync, backup } = require("node:sqlite");
+const integrationStorage = require("./integrations/storage.cjs");
 const { defaultData, ensureShape } = require("./defaults.cjs");
 const { assertAnalysis, assertEvidenceCurrent } = require("./contracts/analysis.cjs");
 const { assertScheduleCurrent, planningRange } = require("./scheduler.cjs");
@@ -39,6 +40,8 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
     // Legacy imports remain readable. New contract records are validated before persistence.
     if (analysis.contract !== undefined) {
       assertAnalysis(analysis);
+      extra.assertSupplementalEvidence(analysis.contract);
+      extra.assertCalendarCoverage(planningRange(analysis.contract.plan));
       assertEvidenceCurrent(analysis.contract, (id) => parse(db.prepare("SELECT data FROM journals WHERE id=?").get(id)));
       if (analysis.scheduling) assertScheduleCurrent(analysis, planningEvents(planningRange(analysis.contract.plan)),
         parse(db.prepare("SELECT data FROM settings WHERE id=1").get()));
@@ -53,15 +56,18 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
     // Old recurrence anchors must be included even if their original interval is outside this day.
     return db.prepare(`SELECT data FROM events WHERE (ends_at > ? AND starts_at < ?)
       OR (starts_at < ? AND json_extract(data, '$.repeat') IS NOT NULL AND json_extract(data, '$.repeat') != 'none')`)
-      .all(Date.parse(from), Date.parse(to), Date.parse(to)).map(parse);
+      .all(Date.parse(from), Date.parse(to), Date.parse(to)).map(parse).concat(extra.googleBusy({ from, to }));
   }
+
+  const extra = integrationStorage.attach(db, transaction, (id) => parse(db.prepare("SELECT data FROM journals WHERE id=?").get(id)));
 
   try {
     // Acquire the writer lock before reading the version: two app processes may start together.
     transaction(() => {
       const version = db.prepare("PRAGMA user_version").get().user_version;
-      if (version > 1) throw new Error("Database was created by a newer app; refusing to downgrade.");
-      if (version === 1) return;
+      if (version > 2) throw new Error("Database was created by a newer app; refusing to downgrade.");
+      if (version === 2) return;
+      if (version === 1) { integrationStorage.migrate(db); return; }
       db.exec(`
         CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL CHECK(json_valid(data)));
         CREATE TABLE events (id TEXT PRIMARY KEY, starts_at INTEGER NOT NULL, ends_at INTEGER NOT NULL,
@@ -74,6 +80,7 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
           data TEXT NOT NULL CHECK(json_valid(data)));
         CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       `);
+      integrationStorage.migrate(db);
       // Import with the schema in one transaction; preserve the original JSON.
       const imported = filePath !== ":memory:" && fs.existsSync(legacyFile);
       const data = ensureShape(imported ? JSON.parse(fs.readFileSync(legacyFile, "utf8")) : defaultData);
@@ -82,7 +89,7 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
       data.journals.forEach(putJournal);
       data.journalAnalyses.forEach(putAnalysis);
       db.prepare("INSERT INTO metadata VALUES('initial_source', ?)").run(imported ? legacyFile : "defaults");
-      db.exec("PRAGMA user_version = 1");
+
     });
   } catch (error) {
     db.close();
@@ -90,6 +97,7 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
   }
 
   const store = {
+    ...extra,
     getSettings: () => parse(db.prepare("SELECT data FROM settings WHERE id=1").get()),
     updateSettings(patch) {
       return transaction(() => {
@@ -155,6 +163,10 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
         }
         const analysis = store.getJournalAnalysis(journalId);
         if (!analysis || analysis.id !== analysisId) throw conflict("Analysis is stale; analyze this journal again");
+        if (analysis.contract) {
+          extra.assertSupplementalEvidence(analysis.contract);
+          extra.assertCalendarCoverage(planningRange(analysis.contract.plan));
+        }
         const events = buildEvents(analysis);
         events.forEach(putEvent);
         const result = { analysisId, journalId, events, appliedAt: new Date().toISOString() };

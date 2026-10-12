@@ -159,6 +159,8 @@
               "get_planning_context",
               "preview_plan",
               "finish_analysis",
+              "search_personal_memory",
+              "research_web",
               "unknown"
             ]
           },

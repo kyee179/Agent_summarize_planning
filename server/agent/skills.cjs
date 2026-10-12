@@ -28,7 +28,8 @@ function buildMessages(skills, context, limits) {
     messages: [{ role: "system", content: system }, { role: "user", content: JSON.stringify({
       request: "Summarize the selected journal and propose realistic follow-up work using the tools.",
       selectedJournal: { id: context.journal.id || "input-journal-0", type: context.journal.type, journalDate: context.journal.journalDate },
-      evidenceCount: context.trustedEvidence.length, relatedJournalCount: context.relatedJournals?.length || 0
+      evidenceCount: context.trustedEvidence.length, relatedJournalCount: context.relatedJournals?.length || 0,
+      permissions: { personalMemory: Boolean(context.memorySearch), webResearch: Boolean(context.webResearch) }
     }) }]
   };
 }

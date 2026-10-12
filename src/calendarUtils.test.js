@@ -27,4 +27,10 @@ describe("calendar utilities", () => {
     expect(line).toContain("Read React docs");
     expect(line).toContain("Desktop notification");
   });
+  it('shows imported multi-day busy time on every overlapping local day, excluding its end date', () => {
+    const day = new Date('2026-07-08T12:00:00');
+    const events = [{ id: 'google', readonly: true, startsAt: new Date('2026-07-07T00:00:00').toISOString(), endsAt: new Date('2026-07-09T00:00:00').toISOString() }];
+    expect(getEventsForDay(events, day)).toHaveLength(1);
+    expect(getEventsForDay(events, new Date('2026-07-09T12:00:00'))).toHaveLength(0);
+  });
 });
