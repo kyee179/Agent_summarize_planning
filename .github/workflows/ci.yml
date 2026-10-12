@@ -6,9 +6,21 @@ on:
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    name: quality-gates (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -19,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
@@ -28,8 +40,31 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Compatibility, prompt pins and private data gate
+        run: pnpm quality:check
+
       - name: Test
         run: pnpm test
 
+      - name: Offline synthetic evaluation (no provider keys)
+        run: pnpm eval
+
       - name: Build frontend
         run: pnpm build
+
+      - name: Desktop IPC and UI smoke (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm smoke:desktop
+
+      - name: Desktop IPC and UI smoke (Windows)
+        if: runner.os == 'Windows'
+        run: pnpm smoke:desktop
+
+      - name: Synthetic evaluation report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: evaluation-${{ matrix.os }}
+          path: evaluation/reports/offline.json
+          retention-days: 14
+          if-no-files-found: warn

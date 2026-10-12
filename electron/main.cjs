@@ -70,8 +70,8 @@ app.whenReady().then(async () => {
   startUrl = !app.isPackaged ? process.env.ELECTRON_START_URL : undefined;
   if (startUrl && startUrl !== DEV_ORIGIN) throw new Error("Electron development URL must be the trusted Vite origin");
   apiToken = crypto.randomBytes(32).toString("hex");
-  const dataFile = app.isPackaged ? path.join(app.getPath("userData"), "calendar.sqlite")
-    : process.env.CALENDAR_DB_PATH || path.join(__dirname, "..", "server", "data", "calendar.sqlite");
+  const dataFile = process.env.CALENDAR_DB_PATH || (app.isPackaged ? path.join(app.getPath("userData"), "calendar.sqlite")
+    : path.join(__dirname, "..", "server", "data", "calendar.sqlite"));
   apiServer = startServer({ port: 0, dataFile, apiToken, envFile: false });
   await new Promise((resolve, reject) => { apiServer.once("listening", resolve); apiServer.once("error", reject); });
   ipcMain.handle("calendar:request", async (event, route, options = {}) => {

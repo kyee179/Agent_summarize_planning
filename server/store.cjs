@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync, backup } = require("node:sqlite");
+const { preMigrationSnapshot, MAX_SCHEMA } = require("./recovery.cjs");
 const integrationStorage = require("./integrations/storage.cjs");
 const { defaultData, ensureShape } = require("./defaults.cjs");
 const { assertAnalysis, assertEvidenceCurrent } = require("./contracts/analysis.cjs");
@@ -12,7 +13,12 @@ function conflict(message) {
 
 function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), "calendar.json") } = {}) {
   if (filePath !== ":memory:") fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const db = new DatabaseSync(filePath);
+  const db = new DatabaseSync(filePath, { timeout: 5000 });
+  try {
+    const version = db.prepare('PRAGMA user_version').get().user_version;
+    if (version > MAX_SCHEMA) throw new Error('Database was created by a newer app; refusing to downgrade.');
+    preMigrationSnapshot(db, filePath, version);
+  } catch (error) { db.close(); throw error; }
   db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL;");
 
   function transaction(fn) {
@@ -173,6 +179,15 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
         db.prepare("INSERT INTO applied_batches VALUES(?, ?, ?)").run(analysisId, journalId, JSON.stringify(result));
         return { ...result, replayed: false };
       });
+    },
+    health() {
+      const version = db.prepare('PRAGMA user_version').get().user_version;
+      const settings = db.prepare('SELECT data FROM settings WHERE id=1').get();
+      if (!settings || !JSON.parse(settings.data)) throw new Error('Settings unavailable');
+      for (const table of ['events', 'journals', 'analyses', 'applied_batches', 'integration_state', 'activity', 'google_busy', 'memory_documents', 'memory_chunks', 'memory_fts']) {
+        db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
+      }
+      return { ready: version === MAX_SCHEMA, schemaVersion: version };
     },
     backup: (destination) => backup(db, destination),
     close: () => db.close()

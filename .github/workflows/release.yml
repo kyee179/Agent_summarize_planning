@@ -7,7 +7,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   desktop:
@@ -16,6 +20,7 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -26,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
@@ -35,13 +40,28 @@ jobs:
       - name: Validate
         run: pnpm release:check
 
+      - name: Desktop smoke (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm smoke:desktop
+
+      - name: Desktop smoke (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: pnpm smoke:desktop
+
       - name: Build desktop app
-        run: pnpm build:desktop
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm build:desktop --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
           name: study-calendar-${{ matrix.os }}
           path: release/**
+          retention-days: 30
+
+      - name: Upload synthetic evaluation report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: evaluation-release-${{ matrix.os }}
+          path: evaluation/reports/offline.json
+          retention-days: 14

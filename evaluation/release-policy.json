@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "appVersion": "0.3.0",
+  "maxDatabaseSchema": 2,
+  "contractVersion": 1,
+  "promptVersion": "1.1.0",
+  "policyHash": "1e2abfd031f32a43a3ae6876529e13ec73473926d81ae94a6d53e8ad2b479e2a",
+  "datasetVersion": "1.0.0",
+  "skills": {
+    "daily-summary": {
+      "version": "1.1.0",
+      "sha256": "0e279035df06c7a6c36fae6cf8ba777f816c7b3e52d0887f9def4036d1ae5acb"
+    },
+    "task-planning": {
+      "version": "1.1.0",
+      "sha256": "8bde845bc51a4b395acecec2bc089fad09cca10b35646b4d1a9bec75198d7a5b"
+    }
+  },
+  "datasetHash": "f7433636aedc445fbf67ad866cb932dd49428406491cf16aad7113728f8fccae"
+}

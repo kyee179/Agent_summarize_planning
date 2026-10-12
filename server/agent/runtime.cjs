@@ -1,3 +1,4 @@
+const { safeObserve } = require("../observability.cjs");
 const { performance } = require("node:perf_hooks");
 const { ContractError } = require("../contracts/validate.cjs");
 const { permittedTools, createToolSession } = require("./tools.cjs");
@@ -40,6 +41,12 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
     if (!Number.isInteger(limits[key]) || limits[key] < 1 || limits[key] > value) throw new Error("Invalid workflow limit");
   }
   const start = now();
+  async function observed(kind, fields, fn) {
+    const started = now(); let status = 'error', response;
+    try { response = await fn(); status = 'ok'; return response; }
+    finally { safeObserve(context.observe, { kind, ...fields, status, durationMs: Math.max(0, now() - started),
+      ...(kind === 'provider' ? { inputTokens: response?.usage?.inputTokens, outputTokens: response?.usage?.outputTokens } : {}) }); }
+  }
   const stats = { turns: 0, toolCalls: 0, toolErrors: 0, elapsedMs: 0, requestBytes: 0, trace: [] };
   const { messages, promptHash } = buildMessages(skills, context, limits);
   const session = createToolSession(context, context.provider, context.model);
@@ -58,7 +65,8 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
       const requestSize = bytes(encoded.body);
       if (stats.requestBytes + requestSize > limits.maxTotalRequestBytes) throw new WorkflowError("size_limit");
       stats.requestBytes += requestSize; stats.turns++;
-      const response = await boundedRequest(adapter, encoded, limits, remaining());
+      const response = await observed('provider', { provider: context.provider, turn: stats.turns, requestBytes: requestSize },
+        () => boundedRequest(adapter, encoded, limits, remaining()));
       remaining(); sizeCheck(response, limits.maxResponseBytes);
       if (response.needsContinuation && response.calls?.length === 0) {
         // GLM supports auto tool selection. Discard prose; allow bounded protocol repair.
@@ -84,8 +92,9 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
         try { args = JSON.parse(call.arguments); } catch { throw new ContractError([{ path: "/", code: "json", message: "Arguments must be valid JSON" }]); }
         const controller = new AbortController(); let toolTimer;
         try {
-          result = await Promise.race([Promise.resolve().then(() => session.execute(call.name, args, controller.signal)),
-            new Promise((_, reject) => { toolTimer = setTimeout(() => { controller.abort(); reject(new WorkflowError("timeout")); }, remaining()); })]);
+          result = await observed('tool', { tool: tools.some((tool) => tool.name === call.name) ? call.name : 'unknown', turn: stats.turns },
+            () => Promise.race([Promise.resolve().then(() => session.execute(call.name, args, controller.signal)),
+            new Promise((_, reject) => { toolTimer = setTimeout(() => { controller.abort(); reject(new WorkflowError("timeout")); }, remaining()); })]));
         } finally { clearTimeout(toolTimer); }
         sizeCheck(result.output, limits.maxToolResultBytes);
         stats.trace.push({ turn: stats.turns, tool: tools.some((tool) => tool.name === call.name) ? call.name : "unknown", status: "ok" });

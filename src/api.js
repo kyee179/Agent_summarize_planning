@@ -9,11 +9,12 @@ async function request(path, options = {}) {
     status = response.status;
     body = status === 204 ? null : await response.json().catch(() => ({}));
   }
-  if (status >= 400) throw new Error(body?.errors?.join(", ") || body?.error || `Request failed with ${status}`);
+  if (status >= 400) throw new Error((body?.errors?.join(", ") || body?.error || `Request failed with ${status}`) + (body?.requestId ? ` (request ${body.requestId})` : ''));
   return body;
 }
 
 export const api = {
+  diagnostics: () => request('/api/diagnostics'),
   integrationStatus: () => request('/api/integrations/status'),
   activityBuckets: () => request('/api/integrations/activity/buckets'),
   importActivity: (body) => request('/api/integrations/activity/import', { method: 'POST', body: JSON.stringify(body) }),

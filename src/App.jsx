@@ -22,6 +22,7 @@ import { api } from "./api.js";
 import { PlanningTasks } from "./components/PlanningTasks.jsx";
 import { AnalysisSummaries } from "./components/AnalysisSummaries.jsx";
 import { IntegrationSettings } from "./components/IntegrationSettings.jsx";
+import { Diagnostics } from "./components/Diagnostics.jsx";
 import {
   buildMonthDays,
   eventToReminderLine,
@@ -518,6 +519,7 @@ function App() {
               )}
             </aside>
             <IntegrationSettings onCalendarChanged={() => loadEvents()} />
+            <Diagnostics />
           </section>
         )}
       </section>

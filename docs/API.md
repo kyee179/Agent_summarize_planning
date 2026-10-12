@@ -296,3 +296,25 @@ A stopped remote workflow returns a validated local analysis with explicit cauti
 and `agentWorkflow.outcome: "fallback"`; invalid planning inputs still return `422`
 before remote calls. Source/calendar/settings changes still return `409`. Legacy
 saved analyses without this metadata retain compatibility.
+
+## Diagnostics and tracing
+
+`GET /api/diagnostics` requires the existing local API authentication and is
+allowlisted for GET in trusted Electron IPC. Response: `version: 1`, `ready`,
+database schema readiness, app/prompt versions, effective public provider settings,
+Google cache staleness, `telemetry` and `alerts`. It returns 503 when storage is not
+ready; there are no outbound account/source probes. Responses use `Cache-Control:
+no-store`.
+
+Telemetry contains current-process totals, a bounded 10-minute/512-record sample
+window, fallback/error rates, interpretation p95, persistence status and the last
+20 allowlisted traces. Metrics without samples are null. All requests receive a
+server-generated `X-Request-ID`; client IDs are ignored. Error-middleware responses
+include the same `requestId`. Provider/tool children link to the request root span.
+No raw path IDs, query strings, source text, URLs, tool arguments/results, provider
+bodies, credentials or exception messages are recorded.
+
+Token totals include only complete provider-reported usage, with separate response
+and usage-report counts. Missing usage and cost are unknown. Counts reset on
+restart, and trace files rotate privately beside the chosen database. See
+[Step 6](STEP_06.md) for alert thresholds, monitoring commands and recovery.

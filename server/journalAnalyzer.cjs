@@ -1,3 +1,5 @@
+const { performance } = require("node:perf_hooks");
+const { safeObserve } = require("./observability.cjs");
 const { assertSchema, assertBundle, ContractError } = require("./contracts/validate.cjs");
 const { collectJournalEvidence, contractAnalysis, assertAnalysis } = require("./contracts/analysis.cjs");
 const { scheduleBundle } = require("./scheduler.cjs");
@@ -44,6 +46,7 @@ function splitSentences(text) {
 }
 
 function inferTask(sentence) {
+  if (/\b(should not|must not|do not|don't|no longer need to|not going to|cancelled|canceled)\b/i.test(sentence)) return null;
   // Completed statements alone should not become follow-up work.
   if (/\b(finished|completed|submitted|done)\b/i.test(sentence) && !/\b(need to|should|must|have to|unfinished|not finished)\b/i.test(sentence)) return null;
   const hasSignal = taskSignals.some((signal) => sentence.toLowerCase().includes(signal));
@@ -153,6 +156,14 @@ function normalizeRemoteAnalysis(result, provider, model, fallbackContext) {
 }
 
 async function analyzeJournal(input = {}) {
+  const started = performance.now();
+  function finish(result) {
+    assertAnalysis(result);
+    const meta = result.agentWorkflow;
+    safeObserve(input.observe, { kind: 'analysis', outcome: meta.outcome, reason: meta.stopReason, durationMs: performance.now() - started,
+      promptHash: meta.promptHash, promptVersion: meta.promptVersion, toolCalls: meta.toolCalls, toolErrors: meta.toolErrors });
+    return result;
+  }
   const settings = input.settings || {};
   const config = getProviderConfig(settings);
   const availability = input.availability !== undefined ? input.availability : settings.defaultAvailability || [{ startsAt: "20:00", endsAt: "24:00" }];
@@ -176,7 +187,7 @@ async function analyzeJournal(input = {}) {
     run = await runWorkflow({ ...context, provider: provider.provider, model: provider.model }, createProvider(provider), skills);
     if (run.analysis) {
       const result = { ...run.analysis, agentWorkflow: run.metadata };
-      return assertAnalysis(result);
+      return finish(result);
     }
   }
   const fallback = localRuleBasedAnalysis(context);
@@ -193,7 +204,7 @@ async function analyzeJournal(input = {}) {
   fallback.agentWorkflow = run ? { ...run.metadata, ...refs } : workflowMetadata(skills, buildMessages(skills, context, LIMITS).promptHash,
     { turns: 0, toolCalls: 0, toolErrors: 0, elapsedMs: 0, requestBytes: 0, trace: [] },
     config.provider === "local" ? "local" : "fallback", reason, refs);
-  return assertAnalysis(fallback);
+  return finish(fallback);
 }
 
 function getPublicProviderConfig(settings = {}) {

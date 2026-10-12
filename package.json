@@ -22,13 +22,18 @@
     "test": "vitest run && pnpm test:server",
     "build": "vite build",
     "build:desktop": "pnpm build && electron-builder --config electron-builder.yml",
-    "release:check": "pnpm lint && pnpm test && pnpm build",
+    "release:check": "pnpm quality:check && pnpm lint && pnpm test && pnpm eval && pnpm build",
     "setup:env": "node scripts/setup-env.cjs",
     "test:server": "node --test tests/*.test.cjs",
     "backup:db": "node scripts/backup.cjs",
     "smoke:desktop": "node scripts/smoke-desktop.cjs",
     "smoke:web": "node scripts/smoke-web.cjs",
-    "schemas:export": "node scripts/export-schemas.cjs"
+    "schemas:export": "node scripts/export-schemas.cjs",
+    "eval": "node scripts/evaluate.cjs",
+    "eval:live": "node scripts/evaluate.cjs --live",
+    "quality:check": "node scripts/quality-check.cjs",
+    "restore:db": "node scripts/restore.cjs",
+    "monitor": "node scripts/monitor.cjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

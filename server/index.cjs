@@ -3,6 +3,8 @@ const path = require("node:path");
 const express = require("express");
 const { loadEnvironment } = require("./environment.cjs");
 const { localApiSecurity } = require("./security.cjs");
+const { createTelemetry } = require("./observability.cjs");
+const { loadSkills } = require("./agent/skills.cjs");
 const { createStore } = require("./store.cjs");
 const { createIntegrations, routes: integrationRoutes } = require("./integrations/service.cjs");
 const { analyzeJournal, getPublicProviderConfig } = require("./journalAnalyzer.cjs");
@@ -98,11 +100,12 @@ function normalizeJournal(payload, existing = {}) {
   };
 }
 
-function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Date().toISOString(), integrations, integrationOptions = {} }) {
+function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Date().toISOString(), integrations, integrationOptions = {}, telemetry = createTelemetry() }) {
   const app = express();
   const service = integrations || createIntegrations(store, { ...integrationOptions, clock });
   app.locals.closeIntegrations = () => service.close();
   app.disable("x-powered-by");
+  app.use(telemetry.middleware);
   app.use(localApiSecurity(apiToken, allowedOrigins));
   app.use(express.json({ limit: "2mb" }));
   app.use((req, res, next) => {
@@ -114,6 +117,23 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, service: "study-calendar-api" });
+  });
+
+  app.get('/api/diagnostics', (_req, res) => {
+    let database;
+    try { database = store.health(); } catch { database = { ready: false, schemaVersion: null }; }
+    let sync = null, connected = false, provider = getPublicProviderConfig();
+    if (database.ready) {
+      try { sync = store.integrationState('googleSync'); connected = Boolean(store.integrationState('googleTokens')); provider = getPublicProviderConfig(store.getSettings()); }
+      catch { database = { ready: false, schemaVersion: database.schemaVersion }; }
+    }
+    const googleCacheStale = connected && (!sync?.syncedAt || !sync?.calendarIds?.length || Date.parse(sync.syncedAt) < Date.parse(clock()) - 30 * 60000);
+    const snapshot = telemetry.snapshot();
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(database.ready ? 200 : 503).json({ version: 1, ready: database.ready, database,
+      appVersion: require('../package.json').version, promptVersion: loadSkills().promptVersion,
+      provider, googleCacheStale, telemetry: snapshot,
+      alerts: [...snapshot.alerts, ...(!database.ready ? ['database_unavailable'] : []), ...(googleCacheStale ? ['google_cache_needs_sync'] : [])] });
   });
 
   integrationRoutes(app, store, service, clock);
@@ -278,6 +298,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
     const relatedJournals = store.listJournals({ type: journal.type === "daily" ? "weekly" : undefined }).filter((item) => item.id !== journal.id).slice(0, 5);
     const interpreted = await analyzeJournal({
       ...service.context(req.body, journal, settings),
+      observe: req.observe,
       journal,
       relatedJournals,
       settings,
@@ -299,9 +320,9 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
     res.status(201).json(store.saveJournalAnalysis(analysis));
   });
 
-  app.use((error, _req, res, _next) => {
+  app.use((error, req, res, _next) => {
     const status = error.status || 500;
-    res.status(status).json({ error: status < 500 ? error.message : "Internal server error",
+    res.status(status).json({ error: status < 500 ? error.message : "Internal server error", requestId: req.traceId,
       ...(status === 422 && Array.isArray(error.issues) ? { issues: error.issues } : {}) });
   });
 
@@ -326,7 +347,8 @@ function startServer(options = {}) {
   const { validateToken } = require("./security.cjs");
   validateToken(apiToken);
   const store = createStore(dataFile, { legacyFile });
-  const app = createApp({ store, apiToken, allowedOrigins });
+  const telemetry = options.telemetry || createTelemetry({ directory: dataFile === ':memory:' ? null : path.join(path.dirname(path.resolve(dataFile)), 'telemetry') });
+  const app = createApp({ store, apiToken, allowedOrigins, telemetry });
   const server = app.listen(Number(port), "127.0.0.1", () => {
     console.log(`Study Calendar API listening on http://127.0.0.1:${server.address().port}`);
   });

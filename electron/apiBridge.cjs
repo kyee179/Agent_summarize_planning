@@ -8,7 +8,7 @@ function isAllowedRequest(route, method) {
   const item = /^\/api\/(events|journals)\/[^/]+$/.test(url.pathname);
   const action = /^\/api\/journals\/[^/]+\/(analysis|analyze|apply-drafts)$/.test(url.pathname);
   const integrationRoutes = {
-    '/api/integrations/status': ['GET'], '/api/integrations/activity/buckets': ['GET'], '/api/integrations/activity/import': ['POST'],
+    '/api/diagnostics': ['GET'], '/api/integrations/status': ['GET'], '/api/integrations/activity/buckets': ['GET'], '/api/integrations/activity/import': ['POST'],
     '/api/integrations/activity': ['DELETE'], '/api/integrations/google/connect': ['POST'], '/api/integrations/google/cancel': ['POST'],
     '/api/integrations/google/calendars': ['GET'], '/api/integrations/google/sync': ['POST'], '/api/integrations/google': ['DELETE'],
     '/api/memory': ['GET', 'POST'], '/api/memory/index': ['POST'], '/api/memory/search': ['POST'], '/api/research/search': ['POST']

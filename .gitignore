@@ -5,6 +5,9 @@ release/
 .env
 *.log
 coverage/
+evaluation/reports/
+telemetry/
+*.jsonl.private
 server/data/calendar.json
 server/data/
 *.sqlite*

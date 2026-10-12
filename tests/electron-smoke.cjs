@@ -44,6 +44,10 @@ app.on("browser-window-created", (_event, window) => {
         if (!rejected) throw new Error('External IPC route accepted');
         const integrationStatus = await call('/api/integrations/status');
         if (integrationStatus.status !== 200 || 'access_token' in integrationStatus.body.google) throw new Error('Integration status failed');
+        const health = await call('/api/diagnostics');
+        if (health.status !== 200 || !health.body.ready || health.body.telemetry.totals.local < 1) throw new Error('Monitoring IPC failed');
+        if (!health.body.telemetry.recent.some(trace => trace.kind === 'analysis' && trace.outcome === 'local')) throw new Error('Analysis tracing failed');
+        if (JSON.stringify(health.body).includes('I should')) throw new Error('Private text entered monitoring');
         const note = await call('/api/memory', { method: 'POST', body: JSON.stringify({ title: 'Synthetic scope', content: 'Review the synthetic release checklist.' }) });
         if (note.status !== 201) throw new Error('Memory note save failed');
         const search = await call('/api/memory/search', { method: 'POST', body: JSON.stringify({ query: 'checklist' }) });
@@ -53,10 +57,15 @@ app.on("browser-window-created", (_event, window) => {
         journalTab.click();
         for (let i = 0; i < 40 && !document.querySelector('[aria-label="Sources and connections"]'); i++) await new Promise(resolve => setTimeout(resolve, 50));
         if (!document.querySelector('[aria-label="Sources and connections"]') || !document.body.textContent.includes('Sources permitted for this analysis')) throw new Error('Integration setup UI failed');
+        const healthPanel = document.querySelector('[aria-label="System health"]');
+        if (!healthPanel) throw new Error('Monitoring UI missing');
+        healthPanel.querySelector('button').click();
+        for (let i = 0; i < 40 && !healthPanel.textContent.includes('Database ready'); i++) await new Promise(resolve => setTimeout(resolve, 50));
+        if (!healthPanel.textContent.includes('Database ready')) throw new Error('Monitoring UI check failed');
         return { events: first.body.events.length, pageRendered: document.querySelector('main') !== null };
       })()`);
       if (!result.pageRendered) throw new Error("React did not render");
-      console.log("Desktop smoke passed: scheduling, stale-calendar rejection, SQLite, IPC, batch replay, isolation, local memory, and integration setup UI.");
+      console.log("Desktop smoke passed: scheduling, stale-calendar rejection, SQLite, IPC, batch replay, isolation, local memory, integration setup, tracing and monitoring UI.");
       app.quit();
     } catch (error) {
       console.error(`Desktop smoke failed: ${error.message}`);

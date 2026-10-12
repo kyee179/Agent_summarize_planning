@@ -43,8 +43,9 @@ test('SQLite v1 migrates atomically to v2, preserves records, and rejects future
 });
 test('a failed v1 migration rolls back its version and every newly created table', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'integration-rollback-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const file = path.join(dir, 'test.sqlite'), db = new DatabaseSync(file);
-  db.exec('PRAGMA user_version=1; CREATE TABLE memory_documents(id TEXT PRIMARY KEY);'); db.close();
+  const file = path.join(dir, 'test.sqlite'), original = createStore(file); original.close();
+  const db = new DatabaseSync(file);
+  db.exec('DROP TABLE memory_fts; DROP TABLE memory_chunks; DROP TABLE memory_documents; DROP TABLE integration_state; DROP TABLE activity; DROP TABLE google_busy; PRAGMA user_version=1; CREATE TABLE memory_documents(id TEXT PRIMARY KEY);'); db.close();
   assert.throws(() => createStore(file), /already exists/);
   const restored = new DatabaseSync(file); assert.equal(restored.prepare('PRAGMA user_version').get().user_version, 1);
   assert.equal(restored.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name='integration_state'").get().n, 0); restored.close();

@@ -25,6 +25,11 @@ async function readJson(response, maxBytes) {
   try { return JSON.parse(text); } catch { throw new WorkflowError("validation"); }
 }
 
+function usage(inputTokens, outputTokens) {
+  const valid = (v) => Number.isSafeInteger(v) && v >= 0 && v <= 1e9 ? v : undefined;
+  return { inputTokens: valid(inputTokens), outputTokens: valid(outputTokens) };
+}
+
 function createProvider(config, fetchImpl = (...args) => fetch(...args)) {
   const gemini = config.provider === "gemini";
   const glm = config.provider === "glm";
@@ -57,12 +62,13 @@ function createProvider(config, fetchImpl = (...args) => fetch(...args)) {
           arguments: JSON.stringify(part.functionCall.args), nativeId: part.functionCall.id
         })) || [];
         if (!content || data.candidates[0].finishReason !== "STOP") throw new WorkflowError("validation");
-        return { calls, message: { role: "assistant", native: content } };
+        return { calls, usage: usage(data.usageMetadata?.promptTokenCount, data.usageMetadata?.candidatesTokenCount), message: { role: "assistant", native: content } };
       }
       const choice = data.choices?.[0], message = choice?.message;
       if (!message || (choice.finish_reason && choice.finish_reason !== "tool_calls" && !(glm && choice.finish_reason === "stop"))) throw new WorkflowError("validation");
       if (message.tool_calls?.some((call) => call.type !== "function")) throw new WorkflowError("validation");
       return { calls: message.tool_calls?.map((call) => ({ id: call.id, name: call.function?.name, arguments: call.function?.arguments })) || [],
+        usage: usage(data.usage?.prompt_tokens, data.usage?.completion_tokens),
         needsContinuation: glm && choice.finish_reason === "stop" && !message.tool_calls?.length,
         message: { role: "assistant", content: message.content ?? null, tool_calls: message.tool_calls } };
     },

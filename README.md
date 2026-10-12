@@ -171,3 +171,31 @@ for architecture, code, limits, version updates, and verification scope.
 The default provider is now GLM with model `glm-4-flash`. Configure `GLM_API_KEY`
 only in the ignored local `.env`; see [GLM configuration](docs/GLM_CONFIGURATION.md)
 for effective settings, the vendor adapter, bounded continuation, and live-test scope.
+
+## Integrations and operational quality
+
+- [Step 5: authorized activity, Google Calendar, hybrid memory and cited research](docs/STEP_05.md)
+- [Step 6: evaluation, CI, tracing, monitoring and rollback](docs/STEP_06.md)
+- [Evaluation dataset, metrics and human-review rubric](evaluation/README.md)
+
+```powershell
+pnpm eval            # Offline synthetic regression gates; no provider/account access
+pnpm eval:live       # Explicitly sends three synthetic examples to the configured AI
+pnpm release:check   # Policy, lint, tests, offline evaluation and build
+pnpm smoke:desktop   # Electron smoke using temporary synthetic data
+pnpm monitor         # One-shot authenticated standalone-API health probe
+pnpm backup:db "D:\backups\new-snapshot.sqlite"
+pnpm restore:db "D:\backups\new-snapshot.sqlite" "D:\backups\new-recovery.sqlite" 2
+```
+
+Journals → **System health → Check health** shows local operational diagnostics.
+Traces exclude personal source content and credentials, rotate locally, and are
+ignored by Git. Recovery verifies a backup into a new database path; stop the app
+before switching `CALENDAR_DB_PATH`. Read the walkthrough for schema/code/prompt
+compatibility and private encryption-key handling.
+
+On 2026-10-12 all offline gates passed, while challenge task precision/recall were
+50%/66.7%. Live `glm-4-flash` evaluation failed: all three runs timed out and used
+validated fallback. Regression correctness does not establish improved model
+quality, calibrated effort estimates, or readiness to replace an installed
+Calendar_App. CI does not use personal/provider credentials or publish installers.
