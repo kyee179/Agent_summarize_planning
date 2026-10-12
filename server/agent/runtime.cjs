@@ -5,7 +5,7 @@ const { buildMessages } = require("./skills.cjs");
 
 // Server policy: requests, prompts, provider replies, and tool results cannot increase it.
 const LIMITS = Object.freeze({ maxTurns: 12, maxToolCalls: 16, maxToolErrors: 3,
-  timeoutMs: 60000, requestTimeoutMs: 15000, maxOutputTokens: 4096,
+  timeoutMs: 60000, requestTimeoutMs: 30000, maxOutputTokens: 4096,
   maxArgumentBytes: 65536, maxToolResultBytes: 98304, maxResponseBytes: 262144,
   maxTranscriptBytes: 524288, maxRequestBytes: 786432, maxTotalRequestBytes: 3145728 });
 class WorkflowError extends Error {
@@ -59,6 +59,13 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
       stats.requestBytes += requestSize; stats.turns++;
       const response = await boundedRequest(adapter, encoded, limits, remaining());
       remaining(); sizeCheck(response, limits.maxResponseBytes);
+      if (response.needsContinuation && response.calls?.length === 0) {
+        // GLM supports auto tool selection. Discard prose; allow bounded protocol repair.
+        stats.toolErrors++;
+        if (stats.toolErrors >= limits.maxToolErrors) throw new WorkflowError("error_limit");
+        messages.push(response.message, adapter.continuation(session.nextInstruction()));
+        continue;
+      }
       // Execute one call per turn. Reject parallel batches before executing anything.
       if (response.calls?.length !== 1) throw new WorkflowError("validation");
       const call = response.calls[0];
@@ -94,6 +101,8 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
         return { analysis: result.finished.analysis,
           metadata: workflowMetadata(skills, promptHash, stats, "completed", "finished", result.finished) };
       }
+      const continuation = adapter.continuation?.(session.nextInstruction());
+      if (continuation) messages.push(continuation);
       if (stats.toolCalls >= limits.maxToolCalls) throw new WorkflowError("tool_limit");
     }
     throw new WorkflowError("turn_limit");

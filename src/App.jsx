@@ -43,7 +43,7 @@ const categoryOptions = [
 
 const repeatOptions = ["none", "daily", "weekly", "monthly", "yearly"];
 const notificationOptions = ["Desktop notification", "Silent reminder", "Email later", "AI summary later"];
-const providerLabels = { local: "Local rules", openai: "OpenAI", gemini: "Gemini", groq: "Groq" };
+const providerLabels = { local: "Local rules", openai: "OpenAI", gemini: "Gemini", groq: "Groq", glm: "Zhipu GLM" };
 
 function createEmptyForm(day = new Date()) {
   const start = new Date(day);
@@ -97,7 +97,7 @@ function App() {
   const [selectedDay, setSelectedDay] = useState(new Date());
   const [events, setEvents] = useState([]);
   const [journals, setJournals] = useState([]);
-  const [settings, setSettings] = useState({ weekStartsOn: 0, defaultNotifyMinutesBefore: 15, aiProvider: "local" });
+  const [settings, setSettings] = useState({ weekStartsOn: 0, defaultNotifyMinutesBefore: 15, aiProvider: "glm" });
   const [clock, setClock] = useState(new Date());
   const [serverTime, setServerTime] = useState(null);
   const [view, setView] = useState("month");
@@ -478,11 +478,12 @@ function App() {
               <label>Journal<textarea className="journal-textarea" required rows="12" value={journalForm.content} onChange={(event) => setJournalForm({ ...journalForm, content: event.target.value })} placeholder="Write what happened, what remains unfinished, and anything that may need planning." /></label>
 
               <div className="ai-settings-row">
-                <label>AI provider<select value={settings.aiProvider || "local"} onChange={async (event) => { const next = { ...settings, aiProvider: event.target.value }; setSettings(next); setSettings(await api.updateSettings({ aiProvider: event.target.value })); }}>
-                  <option value="local">Local rules</option><option value="openai">OpenAI</option><option value="gemini">Gemini</option><option value="groq">Groq</option>
+                <label>AI provider<select value={settings.effectiveAiProvider || settings.aiProvider || "glm"} disabled={settings.aiProviderOverride} onChange={async (event) => { setSettings(await api.updateSettings({ aiProvider: event.target.value })); }}>
+                  <option value="local">Local rules</option><option value="openai">OpenAI</option><option value="gemini">Gemini</option><option value="groq">Groq</option><option value="glm">Zhipu GLM</option>
                 </select></label>
                 <div className="provider-status">
-                  <Sparkles size={16} /> {providerLabels[settings.aiProvider || "local"]} {settings.aiProviderConfigured?.[settings.aiProvider] ? "configured" : settings.aiProvider === "local" ? "ready" : "needs API key"}
+                  <Sparkles size={16} /> {settings.aiModel || providerLabels[settings.effectiveAiProvider || settings.aiProvider || "glm"]} {settings.aiProviderConfigured?.[settings.effectiveAiProvider || settings.aiProvider || "glm"] ? "configured" : (settings.effectiveAiProvider || settings.aiProvider) === "local" ? "ready" : "needs API key"}
+                  {settings.aiProviderOverride && <small>Provider is set by the local environment.</small>}
                 </div>
               </div>
 

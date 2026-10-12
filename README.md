@@ -78,7 +78,8 @@ Optional AI provider setup:
 
 ```bash
 pnpm setup:env
-# choose AI_PROVIDER=local, openai, gemini, or groq
+# default AI_PROVIDER=glm with GLM_MODEL=glm-4-flash
+# set GLM_API_KEY locally; choose local, openai, gemini, or groq if desired
 # add the matching API key if using a remote provider
 ```
 
@@ -162,3 +163,7 @@ with four controlled tools, validated previews, resource limits, and explicit lo
 fallbacks. Summaries include reviewable source references. Calendar writes continue
 through the reviewed, atomic Apply action. See [Step 4 walkthrough](docs/STEP_04.md)
 for architecture, code, limits, version updates, and verification scope.
+
+The default provider is now GLM with model `glm-4-flash`. Configure `GLM_API_KEY`
+only in the ignored local `.env`; see [GLM configuration](docs/GLM_CONFIGURATION.md)
+for effective settings, the vendor adapter, bounded continuation, and live-test scope.

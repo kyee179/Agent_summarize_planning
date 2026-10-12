@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { collectJournalEvidence, assertAnalysis } = require("../server/contracts/analysis.cjs");
 const { assertSchema, ContractError } = require("../server/contracts/validate.cjs");
-const { localRuleBasedAnalysis, analyzeJournal } = require("../server/journalAnalyzer.cjs");
+const { localRuleBasedAnalysis, analyzeJournal, getPublicProviderConfig } = require("../server/journalAnalyzer.cjs");
 const { loadSkills, buildMessages } = require("../server/agent/skills.cjs");
 const { tools, createToolSession } = require("../server/agent/tools.cjs");
 const { LIMITS, runWorkflow } = require("../server/agent/runtime.cjs");
@@ -40,7 +40,7 @@ test("skills are pinned, layered, and hashed without placing source text in inst
   const skills = loadSkills(), ctx = context();
   assert.deepEqual(skills.skills.map((item) => [item.name, item.version]), [["daily-summary", "1.0.0"], ["task-planning", "1.0.0"]]);
   const first = buildMessages(skills, ctx, LIMITS);
-  assert.match(first.messages[0].content, /Workflow policy v1.0.0/);
+  assert.match(first.messages[0].content, /Workflow policy v1.0.1/);
   assert.match(first.messages[0].content, /# Role and goal/);
   assert.ok(!JSON.stringify(first.messages).includes(input.journal.content));
   assert.equal(first.promptHash, buildMessages(skills, { ...ctx, journal: { ...ctx.journal, content: "Different" } }, LIMITS).promptHash);
@@ -193,6 +193,42 @@ test("OpenAI and Groq wire protocols complete multiple turns with matching call 
     assert.equal(bodies[0].parallel_tool_calls, false);
     assert.equal(bodies[0].tools[0].function.strict, provider === "openai");
   }
+});
+
+test("GLM uses vendor parameters, bounded prose repair, and the same validated finish gate", async () => {
+  const ctx = context({ provider: "glm", model: "glm-4-flash" }), calls = happy(ctx), bodies = []; let step = 0;
+  const adapter = createProvider({ provider: "glm", apiKey: "synthetic", model: "glm-4-flash", baseUrl: "https://open.bigmodel.cn/api/paas/v4" }, async (url, options) => {
+    assert.equal(url, "https://open.bigmodel.cn/api/paas/v4/chat/completions");
+    const body = JSON.parse(options.body); bodies.push(body);
+    if (step++ === 1) return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { role: "assistant", content: "Prose is not a final result" } }] }));
+    const c = calls[step > 2 ? step - 2 : step - 1];
+    return new Response(JSON.stringify({ choices: [{ finish_reason: "tool_calls", message: { role: "assistant", content: null,
+      tool_calls: [{ id: c.id, type: "function", function: { name: c.name, arguments: c.arguments } }] } }] }));
+  });
+  const run = await runWorkflow(ctx, adapter, loadSkills());
+  assert.equal(run.metadata.outcome, "completed"); assert.equal(run.metadata.toolErrors, 1); assert.equal(run.metadata.turns, 5);
+  assert.equal(bodies[0].model, "glm-4-flash"); assert.equal(bodies[0].tool_choice, "auto"); assert.equal(bodies[0].max_tokens, 4095);
+  assert.equal(bodies[0].max_completion_tokens, undefined); assert.equal(bodies[0].parallel_tool_calls, undefined);
+  assert.equal(bodies[0].tools[0].function.strict, undefined);
+  assert.match(bodies[1].messages.at(-1).content, /call get_planning_context/);
+});
+
+test("GLM ordinary text cannot finish and stops after the shared validation error budget", async () => {
+  const adapter = createProvider({ provider: "glm", apiKey: "synthetic", model: "glm-4-flash", baseUrl: "https://example.invalid" }, async () =>
+    new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { role: "assistant", content: "Invalid final prose" } }] })));
+  const run = await runWorkflow(context({ provider: "glm" }), adapter, loadSkills());
+  assert.equal(run.metadata.stopReason, "error_limit"); assert.equal(run.metadata.turns, 3); assert.equal(run.analysis, undefined);
+});
+
+test("public provider configuration exposes the effective model without credentials", (t) => {
+  const names = ["AI_PROVIDER", "GLM_MODEL", "GLM_API_KEY"];
+  const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  t.after(() => { for (const name of names) { if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name]; } });
+  delete process.env.AI_PROVIDER; delete process.env.GLM_MODEL; process.env.GLM_API_KEY = "synthetic-secret";
+  assert.deepEqual(getPublicProviderConfig(), { effectiveAiProvider: "glm", aiModel: "glm-4-flash", aiProviderOverride: false });
+  process.env.AI_PROVIDER = "glm";
+  assert.equal(getPublicProviderConfig({ aiProvider: "local" }).effectiveAiProvider, "glm");
+  assert.ok(!JSON.stringify(getPublicProviderConfig()).includes("synthetic-secret"));
 });
 
 test("Gemini preserves signed model parts and returns native function IDs without putting keys in URLs", async () => {

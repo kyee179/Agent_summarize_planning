@@ -31,6 +31,12 @@ function createToolSession(context, provider, model) {
   const expectedPlan = context.expectedPlan;
   const plan = { id: "plan:1", state: "proposal", ...expectedPlan, blocks: [], unscheduled: [], warnings: [] };
   return {
+    nextInstruction() {
+      if (!read) return "read_evidence with offset 0 and limit 20";
+      if (!inspected) return "get_planning_context with an empty argument object";
+      if (!preview) return "preview_plan with a complete proposal matching its argument schema; you may read more evidence first";
+      return `finish_analysis with previewId ${preview.previewId}; you may revise through preview_plan first`;
+    },
     invalidatePreview() { preview = null; },
     execute(name, args) {
       if (name === "preview_plan") preview = null;

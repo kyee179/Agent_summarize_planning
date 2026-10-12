@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "promptVersion": "1.0.0",
+  "promptVersion": "1.0.1",
   "skills": {
     "daily-summary": "1.0.0",
     "task-planning": "1.0.0"

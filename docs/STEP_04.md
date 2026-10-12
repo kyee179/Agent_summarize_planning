@@ -46,7 +46,8 @@ and persistence. Neither prompts nor provider replies can expand tool permission
 ## 2. Version instructions separately from data
 
 Start with [`server/skills/registry.json`](../server/skills/registry.json): it pins
-both skills and the policy prompt to `1.0.0`.
+both skills to `1.0.0` and selects the policy prompt version (currently `1.0.1`).
+See [the GLM update](GLM_CONFIGURATION.md) for the default provider and live checks.
 
 - [`daily-summary/1.0.0/SKILL.md`](../server/skills/daily-summary/1.0.0/SKILL.md):
   distinguish reported activity from intent, summarize the selected journal only,
@@ -112,7 +113,7 @@ HTTP bodies and provider instructions cannot override it.
 | Tool calls | 16; one per turn, so the default turn cap is reached first |
 | Tool validation errors | Stop on the third error; at most two repair opportunities |
 | Overall remote workflow time | 60 seconds |
-| Each provider request, including body reading | 15 seconds or remaining overall time |
+| Each provider request, including body reading | 30 seconds or remaining overall time |
 | Requested output per provider turn | 4,096 tokens |
 | Tool arguments | 64 KiB |
 | Each tool result | 96 KiB |

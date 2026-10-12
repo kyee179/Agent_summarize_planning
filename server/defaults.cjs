@@ -4,7 +4,7 @@ const defaultData = {
     locale: "en-US",
     weekStartsOn: 0,
     defaultNotifyMinutesBefore: 15,
-    aiProvider: "local",
+    aiProvider: "glm",
     dailyAiRequestLimit: 10,
     defaultAvailability: [
       { label: "Evening focus", startsAt: "20:00", endsAt: "24:00" }

@@ -123,7 +123,7 @@ function summarizeWeekly(sentences, tasks) {
 }
 
 function getProviderConfig(settings = {}) {
-  const provider = process.env.AI_PROVIDER || settings.aiProvider || "local";
+  const provider = process.env.AI_PROVIDER || settings.aiProvider || "glm";
   return {
     provider,
     openaiKey: process.env.OPENAI_API_KEY,
@@ -131,7 +131,9 @@ function getProviderConfig(settings = {}) {
     geminiKey: process.env.GEMINI_API_KEY,
     geminiModel: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
     groqKey: process.env.GROQ_API_KEY,
-    groqModel: process.env.GROQ_MODEL || "llama-3.1-8b-instant"
+    groqModel: process.env.GROQ_MODEL || "llama-3.1-8b-instant",
+    glmKey: process.env.GLM_API_KEY,
+    glmModel: process.env.GLM_MODEL || "glm-4-flash"
   };
 }
 
@@ -164,7 +166,8 @@ async function analyzeJournal(input = {}) {
   const providers = {
     openai: { provider: "openai", apiKey: config.openaiKey, model: config.openaiModel, baseUrl: "https://api.openai.com/v1" },
     groq: { provider: "groq", apiKey: config.groqKey, model: config.groqModel, baseUrl: "https://api.groq.com/openai/v1" },
-    gemini: { provider: "gemini", apiKey: config.geminiKey, model: config.geminiModel }
+    gemini: { provider: "gemini", apiKey: config.geminiKey, model: config.geminiModel },
+    glm: { provider: "glm", apiKey: config.glmKey, model: config.glmModel, baseUrl: "https://open.bigmodel.cn/api/paas/v4" }
   };
   const provider = Object.hasOwn(providers, config.provider) ? providers[config.provider] : null;
   let run;
@@ -192,4 +195,11 @@ async function analyzeJournal(input = {}) {
   return assertAnalysis(fallback);
 }
 
-module.exports = { analyzeJournal, inferTask, localRuleBasedAnalysis, splitSentences, normalizeRemoteAnalysis };
+function getPublicProviderConfig(settings = {}) {
+  const config = getProviderConfig(settings);
+  const models = { openai: config.openaiModel, groq: config.groqModel, gemini: config.geminiModel, glm: config.glmModel, local: "rule-based-v1" };
+  return { effectiveAiProvider: config.provider, aiModel: Object.hasOwn(models, config.provider) ? models[config.provider] : null,
+    aiProviderOverride: Boolean(process.env.AI_PROVIDER) };
+}
+
+module.exports = { analyzeJournal, inferTask, localRuleBasedAnalysis, splitSentences, normalizeRemoteAnalysis, getPublicProviderConfig };

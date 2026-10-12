@@ -27,12 +27,14 @@ async function readJson(response, maxBytes) {
 
 function createProvider(config, fetchImpl = (...args) => fetch(...args)) {
   const gemini = config.provider === "gemini";
+  const glm = config.provider === "glm";
   let turn = 0;
   function request(messages, tools, limits) {
     if (!gemini) return { url: `${config.baseUrl}/chat/completions`, headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
-      body: { model: config.model, temperature: 0.2, max_completion_tokens: limits.maxOutputTokens,
-        parallel_tool_calls: false, tool_choice: "required", messages,
-        tools: tools.map((tool) => ({ type: "function", function: { ...tool, strict: config.provider === "openai" } })) } };
+      body: { model: config.model, temperature: 0.2,
+        ...(glm ? { max_tokens: Math.min(limits.maxOutputTokens, 4095), tool_choice: "auto" }
+          : { max_completion_tokens: limits.maxOutputTokens, parallel_tool_calls: false, tool_choice: "required" }), messages,
+        tools: tools.map((tool) => ({ type: "function", function: { ...tool, ...(!glm ? { strict: config.provider === "openai" } : {}) } })) } };
     return { url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent`,
       headers: { "Content-Type": "application/json", "x-goog-api-key": config.apiKey },
       body: { systemInstruction: { parts: [{ text: messages[0].content }] },
@@ -58,10 +60,14 @@ function createProvider(config, fetchImpl = (...args) => fetch(...args)) {
         return { calls, message: { role: "assistant", native: content } };
       }
       const choice = data.choices?.[0], message = choice?.message;
-      if (!message || (choice.finish_reason && choice.finish_reason !== "tool_calls")) throw new WorkflowError("validation");
+      if (!message || (choice.finish_reason && choice.finish_reason !== "tool_calls" && !(glm && choice.finish_reason === "stop"))) throw new WorkflowError("validation");
       if (message.tool_calls?.some((call) => call.type !== "function")) throw new WorkflowError("validation");
       return { calls: message.tool_calls?.map((call) => ({ id: call.id, name: call.function?.name, arguments: call.function?.arguments })) || [],
+        needsContinuation: glm && choice.finish_reason === "stop" && !message.tool_calls?.length,
         message: { role: "assistant", content: message.content ?? null, tool_calls: message.tool_calls } };
+    },
+    continuation(instruction) {
+      return glm ? { role: "user", content: `Workflow continuation: call ${instruction}. Return exactly one function call, not ordinary text. Only finish_analysis ends this workflow.` } : null;
     },
     toolResult(call, output) {
       if (gemini) return { role: "tool", native: { role: "user", parts: [{ functionResponse: {

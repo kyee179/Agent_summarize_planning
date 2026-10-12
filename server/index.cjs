@@ -4,7 +4,7 @@ const express = require("express");
 const { loadEnvironment } = require("./environment.cjs");
 const { localApiSecurity } = require("./security.cjs");
 const { createStore } = require("./store.cjs");
-const { analyzeJournal } = require("./journalAnalyzer.cjs");
+const { analyzeJournal, getPublicProviderConfig } = require("./journalAnalyzer.cjs");
 const { assertBundle, assertSchema, ContractError, isInstant, isCalendarDate, isTimezone } = require("./contracts/validate.cjs");
 const { assertAnalysis, assertEvidenceCurrent, projectContract } = require("./contracts/analysis.cjs");
 const { localParts } = require("./contracts/time.cjs");
@@ -125,7 +125,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
 
   app.get("/api/settings", (_req, res) => {
     const settings = store.getSettings();
-    res.json({ ...settings, aiProviderConfigured: getConfiguredProviders() });
+    res.json({ ...settings, ...getPublicProviderConfig(settings), aiProviderConfigured: getConfiguredProviders() });
   });
 
   app.put("/api/settings", (req, res) => {
@@ -138,7 +138,8 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
         availability: settings.defaultAvailability, blocks: [], unscheduled: [], warnings: []
       } });
     }
-    res.json(store.updateSettings(patch));
+    const updated = store.updateSettings(patch);
+    res.json({ ...updated, ...getPublicProviderConfig(updated), aiProviderConfigured: getConfiguredProviders() });
   });
 
   app.get("/api/events", (req, res) => {
@@ -302,6 +303,7 @@ function getConfiguredProviders() {
     openai: Boolean(process.env.OPENAI_API_KEY),
     gemini: Boolean(process.env.GEMINI_API_KEY),
     groq: Boolean(process.env.GROQ_API_KEY),
+    glm: Boolean(process.env.GLM_API_KEY),
     local: true
   };
 }
