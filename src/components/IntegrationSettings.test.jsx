@@ -46,6 +46,20 @@ describe('integration setup and consent', () => {
     await waitFor(() => expect(api.quickGoogleSync).toHaveBeenCalledOnce(), { timeout: 3000 });
     expect(await screen.findByText(/Your primary calendar is reserved/)).toBeInTheDocument();
   });
+  it('keeps polling while the callback exchanges tokens even if an interim response lacks pending', async () => {
+    let state = 'initial';
+    api.memoryNotes.mockResolvedValue([]);
+    api.integrationStatus.mockImplementation(async () => ({ google: { configured: true, connected: state === 'connected', pending: state === 'waiting', lastOAuth: state === 'connected' ? 'connected' : state === 'exchanging' ? 'exchanging' : 'waiting' }, memory: {}, research: {} }));
+    api.connectGoogle.mockImplementation(async () => { state = 'waiting'; return { authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=synthetic', expiresAt: '2030-01-01T00:00:00Z' }; });
+    api.openGoogleConsent.mockResolvedValue({ opened: true }); api.quickGoogleSync.mockResolvedValue({ imported: 0 });
+    render(<IntegrationSettings />); await waitFor(() => expect(screen.getByRole('button', { name: 'Connect Google Calendar' })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Google Calendar' }));
+    await screen.findByText(/Complete Google sign-in/); expect(screen.getByText(/OAuth configured · Connecting/)).toBeInTheDocument();
+    state = 'exchanging'; await waitFor(() => expect(api.integrationStatus.mock.calls.length).toBeGreaterThanOrEqual(3), { timeout: 3000 });
+    expect(screen.queryByText(/Google authorization ended/)).not.toBeInTheDocument(); expect(api.quickGoogleSync).not.toHaveBeenCalled();
+    state = 'connected'; await waitFor(() => expect(api.quickGoogleSync).toHaveBeenCalledOnce(), { timeout: 3000 });
+    expect(await screen.findByText(/Your primary calendar is reserved/)).toBeInTheDocument();
+  }, 10000);
   it('starts desktop activity only after the user presses the enable button', async () => {
     api.memoryNotes.mockResolvedValue([]); api.integrationStatus.mockResolvedValue({ google: {}, memory: {}, research: {}, desktopActivity: { available: true, running: false } });
     api.startDesktopActivity.mockResolvedValue({ enabled: true }); render(<IntegrationSettings />);

@@ -50,7 +50,7 @@ export function IntegrationSettings({ onCalendarChanged, researchEnabled = false
           clearInterval(googlePoll.current); googlePoll.current = null; setAuthorization(null);
           try { await api.quickGoogleSync(); await refresh(); setMessage('Google Calendar connected. Your primary calendar is reserved for today and the next seven days.'); }
           catch (e) { setMessage('Google connected. ' + e.message); }
-        } else if (!current.google.pending) {
+        } else if (!current.google.pending && ['failed', 'expired', 'cancelled'].includes(current.google.lastOAuth)) {
           clearInterval(googlePoll.current); googlePoll.current = null; setAuthorization(null);
           setMessage('Google authorization ended. Press Connect Google Calendar to try again.');
         }
@@ -103,7 +103,7 @@ export function IntegrationSettings({ onCalendarChanged, researchEnabled = false
     </details>
     <details><summary>Google Calendar — read only</summary>
       <p>Create a Google Cloud OAuth client of type Desktop app, enable Calendar API, and add your account as a test user. Put GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the local .env, run pnpm setup:env, then restart. Tokens are encrypted locally.</p>
-      <p>{status?.google?.configured ? 'OAuth configured' : 'Credentials needed'} · {status?.google?.connected ? 'Connected' : 'Disconnected'} {status?.google?.lastOAuth && `· ${status.google.lastOAuth}`}</p>
+      <p>{status?.google?.configured ? 'OAuth configured' : 'Credentials needed'} · {status?.google?.pending ? 'Connecting' : status?.google?.connected ? 'Connected' : 'Disconnected'} {status?.google?.lastOAuth && `· ${status.google.lastOAuth}`}</p>
       <label className="consent-row"><input type="checkbox" checked={googleConsent} onChange={(e) => setGoogleConsent(e.target.checked)} />Allow read-only Calendar access and import selected calendars as busy time</label>
       <button type="button" disabled={busy || !googleConsent || !status?.google?.configured} onClick={() => run(async () => { return connectGoogle(); })}>Connect selected calendars with Google</button>
       {authorization && <p><a href={authorization.authorizationUrl} target="_blank" rel="noreferrer">Open Google consent in browser</a> · Expires {authorization.expiresAt}</p>}

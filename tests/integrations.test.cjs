@@ -164,13 +164,31 @@ test('Google loopback OAuth validates state, uses PKCE, encrypts tokens and reje
   assert.throws(() => store.assertCalendarCoverage(selectedRange, now), /Select calendars/);
   await assert.rejects(fetch(callback));
 });
+test('Google OAuth remains pending during token exchange, blocks parallel connect/sync and consumes state only once', async (t) => {
+  let release, entered, calls = 0; const started = new Promise((r) => { entered = r; });
+  const { google, store } = googleFixture(t, async () => { calls++; entered(); return new Promise((r) => { release = () => r(respond({ access_token: 'synthetic', refresh_token: 'synthetic-refresh', expires_in: 3600, scope: SCOPES.join(' ') })); }); });
+  const connection = await google.connect({ consent: true }), auth = new URL(connection.authorizationUrl);
+  const callback = new URL(auth.searchParams.get('redirect_uri')); callback.searchParams.set('state', auth.searchParams.get('state')); callback.searchParams.set('code', 'synthetic');
+  const request = fetch(callback); await started;
+  assert.equal(google.status().pending, true); assert.equal(google.status().lastOAuth, 'exchanging'); assert.equal(google.status().connected, false);
+  await assert.rejects(google.connect({ consent: true }), /Wait/);
+  await assert.rejects(google.sync({ consent: true }), /Wait/);
+  assert.equal((await fetch(callback)).status, 400); assert.equal(calls, 1);
+  release(); assert.equal((await request).status, 200);
+  assert.equal(google.status().pending, false); assert.equal(google.status().lastOAuth, 'connected'); assert.equal(google.status().connected, true);
+  assert.ok(store.integrationState('googleTokens'));
+});
+
 test('cancelled OAuth cannot persist a late token exchange', async (t) => {
   let release, entered; const started = new Promise((r) => { entered = r; });
   const { google, store } = googleFixture(t, async () => { entered(); return new Promise((r) => { release = () => r(respond({ access_token: 'synthetic', expires_in: 3600, scope: SCOPES.join(' ') })); }); });
   const connection = await google.connect({ consent: true }), auth = new URL(connection.authorizationUrl);
   const callback = new URL(auth.searchParams.get('redirect_uri')); callback.searchParams.set('state', auth.searchParams.get('state')); callback.searchParams.set('code', 'synthetic');
-  const request = fetch(callback); await started; google.cancel(); release();
+  const request = fetch(callback); await started;
+  assert.equal(google.status().pending, true); google.cancel(); assert.equal(google.status().pending, false);
+  await google.connect({ consent: true }); release();
   assert.equal((await request).status, 400); assert.equal(store.integrationState('googleTokens'), null);
+  assert.equal(google.status().pending, true); assert.equal(google.status().lastOAuth, 'waiting');
 });
 test('Google expands recurring instances, respects all-day zones/transparency, and preserves complete cache on failed pagination', async (t) => {
   let fail = false;

@@ -33,12 +33,13 @@ function eventTimes(event, timezone) {
   throw error('Google returned an unsupported event time; no partial calendar cache was saved', 502);
 }
 function createGoogle(store, { fetchImpl, env = process.env, clock = () => new Date().toISOString() } = {}) {
-  let pending = null, generation = 0, refreshPromise = null, syncing = false, connecting = false, lastOAuth = null;
+  let pending = null, exchanging = null, generation = 0, refreshPromise = null, syncing = false, connecting = false, lastOAuth = null;
   const configured = () => Boolean(env.GOOGLE_CLIENT_ID && Buffer.from(env.INTEGRATION_ENCRYPTION_KEY || '', 'base64').length === 32);
   function cancel() {
     generation++;
-    if (pending || lastOAuth === 'waiting') lastOAuth = 'cancelled';
+    if (pending || exchanging || ['waiting', 'exchanging'].includes(lastOAuth)) lastOAuth = 'cancelled';
     if (pending) { clearTimeout(pending.timer); pending.server.close(); pending = null; }
+    if (exchanging) { exchanging.server.close(); exchanging = null; }
   }
   async function tokenRequest(params) {
     return json('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -85,13 +86,13 @@ function createGoogle(store, { fetchImpl, env = process.env, clock = () => new D
   const calendars = async () => (await pages('https://www.googleapis.com/calendar/v3/users/me/calendarList', { maxResults: '100' }, 1000))
     .map((item) => ({ id: item.id, name: String(item.summary || item.id).slice(0, 300), timezone: item.timeZone || null, primary: item.primary === true }));
   return {
-    status: () => ({ configured: configured(), connected: Boolean(store.integrationState('googleTokens')), pending: Boolean(pending), lastOAuth,
+    status: () => ({ configured: configured(), connected: Boolean(store.integrationState('googleTokens')), pending: Boolean(pending || exchanging), lastOAuth,
       sync: store.integrationState('googleSync'), scopes: SCOPES }),
     cancel, close: cancel, calendars,
     async connect(input) {
       if (input.consent !== true) throw error('Google connection requires explicit consent');
       if (!configured()) throw error('Configure GOOGLE_CLIENT_ID and run pnpm setup:env, then restart', 409);
-      if (syncing || refreshPromise || connecting) throw error('Wait for the current Google request to finish', 409);
+      if (syncing || refreshPromise || connecting || exchanging) throw error('Wait for the current Google request to finish', 409);
       cancel(); lastOAuth = 'waiting'; const current = generation;
       const state = crypto.randomBytes(32).toString('base64url'), verifier = crypto.randomBytes(32).toString('base64url');
       let redirect;
@@ -104,7 +105,8 @@ function createGoogle(store, { fetchImpl, env = process.env, clock = () => new D
           res.writeHead(400); res.end('Invalid or expired authorization response.'); return;
         }
         // Consume a matching state once, before any asynchronous exchange.
-        clearTimeout(pending.timer); pending = null; server.close();
+        clearTimeout(pending.timer); pending = null;
+        exchanging = { generation: current, server }; lastOAuth = 'exchanging';
         try {
           const code = callback.searchParams.get('code');
           if (callback.searchParams.has('error') || callback.searchParams.getAll('code').length !== 1 || !code || code.length > 4096) throw error('Authorization declined', 400);
@@ -112,6 +114,7 @@ function createGoogle(store, { fetchImpl, env = process.env, clock = () => new D
           if (generation !== current) throw error('Cancelled', 409);
           lastOAuth = 'connected'; res.end('Google Calendar connected. Return to the app and refresh connection status.');
         } catch { if (generation === current) lastOAuth = 'failed'; res.writeHead(400); res.end('Connection failed or declined. Return to the app and reconnect.'); }
+        finally { if (exchanging?.generation === current) exchanging = null; server.close(); }
       });
       server.headersTimeout = 5000; server.requestTimeout = 10000;
       connecting = true;
@@ -127,7 +130,7 @@ function createGoogle(store, { fetchImpl, env = process.env, clock = () => new D
     },
     async sync(input) {
       if (input.consent !== true) throw error('Calendar import requires explicit consent');
-      if (syncing || pending || refreshPromise) throw error('Wait for the current Google operation to finish', 409);
+      if (syncing || pending || exchanging || refreshPromise) throw error('Wait for the current Google operation to finish', 409);
       const selectedRange = range(input);
       if (!Array.isArray(input.calendarIds) || !input.calendarIds.length || input.calendarIds.length > 4 || new Set(input.calendarIds).size !== input.calendarIds.length ||
           input.calendarIds.some((id) => typeof id !== 'string' || id.length > 500)) throw error('Select 1–4 calendars');

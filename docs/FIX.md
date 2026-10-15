@@ -82,3 +82,16 @@ Useful commands: `pnpm release:check`, `pnpm smoke:desktop`, and `pnpm eval:live
 ### Hosted CI correction
 
 The first hosted Linux run found a timezone assumption in the new Google quick-sync test: it expected Shanghai timestamps while leaving app settings at the host default (UTC on the runner). The fixture now explicitly sets the app timezone to Asia/Shanghai and returns UTC as the Google calendar timezone. This checks that quick sync follows app settings independently of the host and calendar timezone. The test was rerun with a UTC process timezone. No production scheduling code or expected time interval was changed.
+
+## Google consent follow-up: access eligibility and token exchange
+
+Two separate failures were observed in the live setup:
+
+1. **Google returned 403 before callback.** The project was External / Testing with zero test users. After explicit user approval, the signing-in account was added to the test-user list and the saved count became one. A fresh request reached Google's test-app notice. This was an app-owner configuration correction; credentials and account identifiers remain private.
+2. **The connection ended during the callback.** The callback consumed the one-use state, set the pending listener record to null and began the asynchronous token exchange. Status briefly reported no pending authorization while the outcome still said waiting. Both UI polling and the temporary live harness could mistake that transitional state for a finished flow; the harness then cancelled the in-flight exchange. A synthetic delayed exchange reproduced this gap.
+
+The corrected backend tracks an exchange separately from the unconsumed state. Public status keeps `pending: true` with `lastOAuth: exchanging` until the token response is checked and stored, or fails/cancels. The callback listener stays open until that response finishes; repeated state is rejected without issuing a second token request. Connect and sync refuse overlapping exchanges. Cancellation advances the existing generation counter, so late tokens cannot save or clear a newer authorization.
+
+The UI shows Connecting during pending authorization and stops polling only for explicit terminal outcomes. The private live harness follows the same rule. This prevents a temporary lack of a listener record from being treated as disconnection. State validation, PKCE, the two read-only scopes, token encryption, fixed endpoints and the bounded token request remain enforced.
+
+Regression coverage in `tests/integrations.test.cjs` holds the token response open while checking pending status, replay rejection, parallel-operation rejection and successful completion. The cancellation test also starts a new authorization before the old response arrives. The UI regression in `IntegrationSettings.test.jsx` verifies that polling survives an interim exchange response and synchronizes only after completion. Real Google token-endpoint reachability was separately confirmed with an unauthenticated diagnostic request (HTTP 400, no credentials sent). Local release verification passed: 148 tests (21 frontend and 127 server), quality policy, lint, offline evaluation, production build and the real Electron smoke using a temporary synthetic database. The real authorization/sync retry is still awaiting user consent at this record.
