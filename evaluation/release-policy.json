@@ -3,8 +3,8 @@
   "appVersion": "0.3.0",
   "maxDatabaseSchema": 2,
   "contractVersion": 1,
-  "promptVersion": "1.1.0",
-  "policyHash": "1e2abfd031f32a43a3ae6876529e13ec73473926d81ae94a6d53e8ad2b479e2a",
+  "promptVersion": "1.2.0",
+  "policyHash": "36d8ed237dd94469559eaf697573a39c14cf3327b1375f75e2519f76b6670768",
   "datasetVersion": "1.0.0",
   "skills": {
     "daily-summary": {
@@ -16,5 +16,6 @@
       "sha256": "8bde845bc51a4b395acecec2bc089fad09cca10b35646b4d1a9bec75198d7a5b"
     }
   },
-  "datasetHash": "f7433636aedc445fbf67ad866cb932dd49428406491cf16aad7113728f8fccae"
+  "datasetHash": "f7433636aedc445fbf67ad866cb932dd49428406491cf16aad7113728f8fccae",
+  "metricVersion": "2.0.0"
 }

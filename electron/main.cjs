@@ -86,6 +86,12 @@ app.whenReady().then(async () => {
     });
     return { status: response.status, body: response.status === 204 ? null : await response.json() };
   });
+  ipcMain.handle('calendar:google-consent', async (event, url) => {
+    if (!trustedSender(event, mainWindow?.webContents, pageFile, startUrl) || typeof url !== 'string' || url.length > 8192) throw new Error('Untrusted Google consent request');
+    const target = new URL(url);
+    if (target.origin !== 'https://accounts.google.com' || target.pathname !== '/o/oauth2/v2/auth') throw new Error('Invalid Google consent URL');
+    await shell.openExternal(target.href); return { opened: true };
+  });
   createMenu();
   createWindow();
 

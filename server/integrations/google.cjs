@@ -83,7 +83,7 @@ function createGoogle(store, { fetchImpl, env = process.env, clock = () => new D
     throw error('Calendar page limit exceeded; no partial sync was saved');
   }
   const calendars = async () => (await pages('https://www.googleapis.com/calendar/v3/users/me/calendarList', { maxResults: '100' }, 1000))
-    .map((item) => ({ id: item.id, name: String(item.summary || item.id).slice(0, 300), timezone: item.timeZone || null }));
+    .map((item) => ({ id: item.id, name: String(item.summary || item.id).slice(0, 300), timezone: item.timeZone || null, primary: item.primary === true }));
   return {
     status: () => ({ configured: configured(), connected: Boolean(store.integrationState('googleTokens')), pending: Boolean(pending), lastOAuth,
       sync: store.integrationState('googleSync'), scopes: SCOPES }),

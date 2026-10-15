@@ -1,4 +1,5 @@
 const { WorkflowError } = require("./runtime.cjs");
+const { parseToolText } = require("./glmToolText.cjs");
 
 async function readJson(response, maxBytes) {
   // Bound the actual body, not merely Content-Length, which may be absent or false.
@@ -66,6 +67,9 @@ function createProvider(config, fetchImpl = (...args) => fetch(...args)) {
       }
       const choice = data.choices?.[0], message = choice?.message;
       if (!message || (choice.finish_reason && choice.finish_reason !== "tool_calls" && !(glm && choice.finish_reason === "stop"))) throw new WorkflowError("validation");
+      const jsonCall = glm && !message.tool_calls?.length && choice.finish_reason === 'stop' ? parseToolText(message.content, turn) : null;
+      if (jsonCall) return { calls: [jsonCall], usage: usage(data.usage?.prompt_tokens, data.usage?.completion_tokens), protocol: 'json_tool',
+        message: { role: 'assistant', content: null, tool_calls: [{ id: jsonCall.id, type: 'function', function: { name: jsonCall.name, arguments: jsonCall.arguments } }] } };
       if (message.tool_calls?.some((call) => call.type !== "function")) throw new WorkflowError("validation");
       return { calls: message.tool_calls?.map((call) => ({ id: call.id, name: call.function?.name, arguments: call.function?.arguments })) || [],
         usage: usage(data.usage?.prompt_tokens, data.usage?.completion_tokens),

@@ -1,5 +1,11 @@
 # GLM-4-Flash default and live bounded workflow
 
+2026-10-15 update: [Fix guide](FIX.md) fixes the proposal/protocol failures with a
+compact GLM schema, phase-specific tools and strict JSON tool-envelope compatibility.
+The final three synthetic live cases completed remotely in 9.7–14.5 seconds with
+all gates passing (metric version 2). The original failure observations below are
+retained as the investigation history.
+
 The bounded tool workflow from [Step 4](STEP_04.md) already replaced the single
 completion. This update adds GLM as a native provider and makes `glm-4-flash` the
 default model, preserving the same preview, validation, budget, and Apply gates.

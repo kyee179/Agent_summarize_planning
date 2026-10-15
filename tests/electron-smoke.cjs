@@ -44,6 +44,7 @@ app.on("browser-window-created", (_event, window) => {
         if (!rejected) throw new Error('External IPC route accepted');
         const integrationStatus = await call('/api/integrations/status');
         if (integrationStatus.status !== 200 || 'access_token' in integrationStatus.body.google) throw new Error('Integration status failed');
+        if (!('desktopActivity' in integrationStatus.body) || !('separateDownloadRequired' in integrationStatus.body.desktopActivity)) throw new Error('Built-in activity status unavailable');
         const health = await call('/api/diagnostics');
         if (health.status !== 200 || !health.body.ready || health.body.telemetry.totals.local < 1) throw new Error('Monitoring IPC failed');
         if (!health.body.telemetry.recent.some(trace => trace.kind === 'analysis' && trace.outcome === 'local')) throw new Error('Analysis tracing failed');
@@ -57,6 +58,7 @@ app.on("browser-window-created", (_event, window) => {
         journalTab.click();
         for (let i = 0; i < 40 && !document.querySelector('[aria-label="Sources and connections"]'); i++) await new Promise(resolve => setTimeout(resolve, 50));
         if (!document.querySelector('[aria-label="Sources and connections"]') || !document.body.textContent.includes('Sources permitted for this analysis')) throw new Error('Integration setup UI failed');
+        if (!document.body.textContent.includes('Connect Google Calendar') || !document.body.textContent.includes('Enable desktop activity')) throw new Error('One-button connection controls missing');
         const healthPanel = document.querySelector('[aria-label="System health"]');
         if (!healthPanel) throw new Error('Monitoring UI missing');
         healthPanel.querySelector('button').click();

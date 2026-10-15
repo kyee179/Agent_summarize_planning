@@ -495,7 +495,7 @@ function App() {
               <fieldset><legend>Sources permitted for this analysis</legend>
                 <label className="consent-row"><input type="checkbox" checked={analysisSources.includeActivity} onChange={(e) => setAnalysisSources({ ...analysisSources, includeActivity: e.target.checked })} />Include imported activity from this journal’s date</label>
                 <label className="consent-row"><input type="checkbox" checked={analysisSources.allowMemory} onChange={(e) => setAnalysisSources({ ...analysisSources, allowMemory: e.target.checked })} />Retrieve personal memory; excerpts may be sent to the selected AI provider</label>
-                <label className="consent-row"><input type="checkbox" checked={analysisSources.allowWebResearch} onChange={(e) => setAnalysisSources({ ...analysisSources, allowWebResearch: e.target.checked })} />Allow up to two agent queries to Brave Search; queries may include task context</label>
+                <label className="consent-row"><input type="checkbox" checked={analysisSources.allowWebResearch} onChange={(e) => setAnalysisSources({ ...analysisSources, allowWebResearch: e.target.checked })} />Enable web research: allow up to two queries to the configured search provider; queries may include task context</label>
               </fieldset>
               <div className="editor-actions">
                 {journalForm.id && <button className="danger-button" type="button" onClick={deleteJournal}><Trash2 size={16} />Delete</button>}
@@ -518,7 +518,7 @@ function App() {
                 </div>
               )}
             </aside>
-            <IntegrationSettings onCalendarChanged={() => loadEvents()} />
+            <IntegrationSettings onCalendarChanged={() => loadEvents()} researchEnabled={analysisSources.allowWebResearch} onResearchToggle={() => setAnalysisSources((current) => ({ ...current, allowWebResearch: !current.allowWebResearch }))} />
             <Diagnostics />
           </section>
         )}

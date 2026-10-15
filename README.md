@@ -199,3 +199,14 @@ On 2026-10-12 all offline gates passed, while challenge task precision/recall we
 validated fallback. Regression correctness does not establish improved model
 quality, calibrated effort estimates, or readiness to replace an installed
 Calendar_App. CI does not use personal/provider credentials or publish installers.
+
+## GLM and optional connections update (2026-10-15)
+
+[Fix guide](docs/FIX.md) documents the GLM protocol fix and simpler connection
+controls. The final three-case `glm-4-flash` live run passed with no fallback
+(9.7–14.5 seconds per case; metric version 2). The Journals connection cards now
+offer Google sign-in with automatic primary-calendar sync, opt-in built-in Windows
+app activity without a separate ActivityWatch download, and Tavily web research.
+Google OAuth app configuration and a Tavily API key are required for those live
+account tests. Keys remain in ignored local configuration; activity collection
+and permission to include it in AI analysis are separate controls.

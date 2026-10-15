@@ -11,8 +11,24 @@ const { createStore } = require('../server/store.cjs');
 const { createMemory, fuse } = require('../server/integrations/memory.cjs');
 const { loadSkills } = require('../server/agent/skills.cjs');
 const dataset = JSON.parse(fs.readFileSync(path.join(__dirname, 'dataset.v1.json'), 'utf8'));
+const METRIC_VERSION = '2.0.0';
 const defaultAvailability = [{ startsAt: '09:00', endsAt: '17:00' }];
-const contains = (text, phrase) => typeof text === 'string' && text.toLowerCase().includes(phrase.toLowerCase());
+const stopWords = new Set(['a', 'an', 'the', 'my', 'your', 'our', 'their', 'his', 'her', 'to', 'for', 'of', 'on', 'in', 'at']);
+function normalizedWords(value) {
+  return (value.toLowerCase().match(/[\p{L}\p{N}]+/gu) || []).filter((word) => !stopWords.has(word))
+    .map((word) => /^[a-z]{5,}$/.test(word) ? word.replace(/(?:ing|ed|s)$/, '').replace(/e$/, '') : word);
+}
+// Version 2 tolerates articles/pronouns and simple verb inflection; word order and negation remain.
+function contains(text, phrase) {
+  if (typeof text !== 'string') return false;
+  if (text.toLowerCase().includes(phrase.toLowerCase())) return true;
+  const expected = normalizedWords(phrase), actual = normalizedWords(text);
+  return expected.length > 0 && actual.some((_, i) => expected.every((word, j) => word === actual[i + j]));
+}
+function actionMatch(text, phrase) {
+  const negative = /\b(?:not|never|cancelled|canceled|don't)\b/i;
+  return typeof text === 'string' && negative.test(text) === negative.test(phrase) && contains(text, phrase);
+}
 const fraction = (good, total) => total ? good / total : 1;
 
 function inputFor(item) {
@@ -26,7 +42,7 @@ function scoreAnalysis(item, result) {
   const tasks = result?.contract?.tasks || [], available = new Set(tasks.map((_, index) => index));
   let matched = 0;
   for (const phrase of item.tasks) {
-    const index = [...available].find((i) => contains(tasks[i].title, phrase));
+    const index = [...available].find((i) => actionMatch(tasks[i].title, phrase));
     if (index !== undefined) { matched++; available.delete(index); }
   }
   const refs = result?.agentWorkflow?.summaryEvidenceIds || [];
@@ -105,7 +121,7 @@ async function runEvaluation({ live = false, analyze = analyzeJournal, onCase } 
     }
   } finally { if (previous === undefined) delete process.env.AI_PROVIDER; else process.env.AI_PROVIDER = previous; }
   const gateMetrics = aggregate(rows.filter((r) => r.split === 'gate'));
-  const report = { schemaVersion: 1, datasetVersion: dataset.datasetVersion,
+  const report = { schemaVersion: 1, metricVersion: METRIC_VERSION, datasetVersion: dataset.datasetVersion,
     datasetHash: crypto.createHash('sha256').update(JSON.stringify(dataset)).digest('hex'), mode: live ? 'live_synthetic' : 'offline_local',
     promptVersion: loadSkills().promptVersion, usage: { ...usage, cost: null, note: 'Reported tokens only; missing/failed responses are not zero usage. No price table configured.' },
     limitations: ['Phrase metrics are proxies, not factual entailment.', 'No measured effort outcomes.', 'No actual embedding quality measurement.', 'Synthetic development set, not a held-out benchmark.'],
@@ -147,4 +163,4 @@ async function runEvaluation({ live = false, analyze = analyzeJournal, onCase } 
   report.elapsedMs = Math.floor(performance.now() - started);
   return report;
 }
-module.exports = { dataset, inputFor, scoreAnalysis, aggregate, schedulerBundle, scheduleSafe, gates, runEvaluation };
+module.exports = { dataset, METRIC_VERSION, inputFor, scoreAnalysis, aggregate, schedulerBundle, scheduleSafe, gates, runEvaluation, contains, actionMatch };

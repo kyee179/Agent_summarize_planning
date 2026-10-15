@@ -722,4 +722,8 @@ button:disabled {
 .integration-settings fieldset, .journal-editor fieldset { border: 1px solid #cbd5e1; border-radius: 8px; margin: 12px 0; }
 .integration-settings blockquote { margin: 14px 0; padding: 12px; background: #f8fafc; border-left: 3px solid #2563eb; overflow-wrap: anywhere; }
 .integration-settings input, .integration-settings textarea { max-width: 100%; }
+.connection-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; margin: 18px 0; }
+.connection-buttons > section { padding: 16px; background: #f8fafc; border: 1px solid #dbe3ee; border-radius: 12px; }
+.connection-buttons h3 { margin: 0 0 10px; }
+.connection-buttons [role="switch"][aria-checked="true"] { background: #dcfce7; border-color: #16a34a; }
 .journal-editor .consent-row { flex-direction: row; align-items: flex-start; font-size: 13px; font-weight: 400; }

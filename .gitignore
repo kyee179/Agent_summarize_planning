@@ -14,3 +14,9 @@ server/data/
 *.db*
 .env.*
 !.env.example
+
+/secret.txt
+
+/client_secret*.json
+
+/credentials.json

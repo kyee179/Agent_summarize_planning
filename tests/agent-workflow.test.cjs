@@ -40,7 +40,7 @@ test("skills are pinned, layered, and hashed without placing source text in inst
   const skills = loadSkills(), ctx = context();
   assert.deepEqual(skills.skills.map((item) => [item.name, item.version]), [["daily-summary", "1.1.0"], ["task-planning", "1.1.0"]]);
   const first = buildMessages(skills, ctx, LIMITS);
-  assert.match(first.messages[0].content, /Workflow policy v1.1.0/);
+  assert.match(first.messages[0].content, /Workflow policy v1.2.0/);
   assert.match(first.messages[0].content, /# Role and goal/);
   assert.ok(!JSON.stringify(first.messages).includes(input.journal.content));
   assert.equal(first.promptHash, buildMessages(skills, { ...ctx, journal: { ...ctx.journal, content: "Different" } }, LIMITS).promptHash);
@@ -197,6 +197,11 @@ test("OpenAI and Groq wire protocols complete multiple turns with matching call 
 
 test("GLM uses vendor parameters, bounded prose repair, and the same validated finish gate", async () => {
   const ctx = context({ provider: "glm", model: "glm-4-flash" }), calls = happy(ctx), bodies = []; let step = 0;
+  const original = JSON.parse(calls[2].arguments).proposal;
+  calls[2].arguments = JSON.stringify({ proposal: { summary: original.summary, weeklySummary: original.weeklySummary,
+    summaryEvidenceIds: original.summaryEvidenceIds, weeklySummaryEvidenceIds: original.weeklySummaryEvidenceIds,
+    tasks: original.tasks.map((task, i) => ({ title: task.title, evidenceIds: task.evidenceIds, importance: task.importance.level,
+      effortMinutes: [original.estimates[i].effortMinutes.low, original.estimates[i].effortMinutes.expected, original.estimates[i].effortMinutes.high], assumption: 'Synthetic estimate' })) } });
   const adapter = createProvider({ provider: "glm", apiKey: "synthetic", model: "glm-4-flash", baseUrl: "https://open.bigmodel.cn/api/paas/v4" }, async (url, options) => {
     assert.equal(url, "https://open.bigmodel.cn/api/paas/v4/chat/completions");
     const body = JSON.parse(options.body); bodies.push(body);

@@ -1,5 +1,7 @@
 appId: com.agent.planning.calendar
 productName: Agent Planning Calendar
+asarUnpack:
+  - server/integrations/windows-activity.ps1
 directories:
   output: release
 files:

@@ -14,6 +14,16 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  startDesktopActivity: () => request('/api/integrations/activity/desktop/start', { method: 'POST', body: JSON.stringify({ consent: true }) }),
+  stopDesktopActivity: () => request('/api/integrations/activity/desktop/stop', { method: 'POST', body: '{}' }),
+  quickGoogleSync: () => request('/api/integrations/google/quick-sync', { method: 'POST', body: JSON.stringify({ consent: true }) }),
+  openGoogleConsent: async (url) => {
+    const target = new URL(url);
+    if (target.origin !== 'https://accounts.google.com' || target.pathname !== '/o/oauth2/v2/auth') throw new Error('Invalid Google consent URL');
+    if (window.studyCalendar?.openGoogleConsent) return window.studyCalendar.openGoogleConsent(target.href);
+    const popup = window.open(target.href, '_blank', 'noopener,noreferrer');
+    return { opened: Boolean(popup), authorizationUrl: target.href };
+  },
   diagnostics: () => request('/api/diagnostics'),
   integrationStatus: () => request('/api/integrations/status'),
   activityBuckets: () => request('/api/integrations/activity/buckets'),

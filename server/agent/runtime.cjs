@@ -60,7 +60,7 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
   try {
     while (stats.turns < limits.maxTurns) {
       remaining(); sizeCheck(messages, limits.maxTranscriptBytes);
-      const encoded = adapter.encode(messages, tools, limits);
+      const encoded = adapter.encode(messages, context.provider === "glm" ? session.availableTools() : tools, limits);
       sizeCheck(encoded.body, limits.maxRequestBytes);
       const requestSize = bytes(encoded.body);
       if (stats.requestBytes + requestSize > limits.maxTotalRequestBytes) throw new WorkflowError("size_limit");

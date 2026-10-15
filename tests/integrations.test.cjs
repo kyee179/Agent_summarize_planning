@@ -211,7 +211,7 @@ test('web search requires consent/key, keeps visible unverified citations and re
     return respond({ web: { results: [{ title: 'Official page', url: 'https://example.com/docs', description: '<b>Scope</b> unknown' }, { title: 'Bad', url: 'http://127.0.0.1', description: 'bad' }] } });
   } });
   await assert.rejects(research.search({ query: 'task' }), /consent/);
-  await assert.rejects(createResearch({ env: {} }).search({ query: 'task', consent: true }), /BRAVE/);
+  await assert.rejects(createResearch({ env: {} }).search({ query: 'task', consent: true }), /TAVILY/);
   const result = await research.search({ query: 'task', consent: true }); assert.equal(result.results.length, 1);
   assert.equal(result.results[0].confidence, 'low'); assert.equal(result.results[0].claimStatus, 'snippet_only'); assert.equal(result.evidence[0].verification, 'unverified'); assert.deepEqual(result.evidence[0].facts, []);
   for (const url of ['https://localhost', 'https://127.0.0.1', 'https://[::1]', 'https://user:pass@example.com', 'javascript:alert(1)', 'https://0x7f000001']) assert.equal(publicUrl(url), null);

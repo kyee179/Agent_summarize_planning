@@ -1,4 +1,5 @@
 const Ajv = require("ajv");
+const { wireSchema, expandProposal } = require("./compactProposal.cjs");
 const { schemas } = require("../contracts/schemas.cjs");
 const { assertSchema, assertBundle, ContractError } = require("../contracts/validate.cjs");
 const { contractAnalysis, assertAnalysis } = require("../contracts/analysis.cjs");
@@ -22,16 +23,17 @@ const tools = [
 ];
 const optionalTools = [
   { name: "search_personal_memory", description: "Search authorized local journals and notes. Maximum two searches. Relevance is not confidence; sources may be stale or partial.", parameters: object({ query: { type: "string", minLength: 1, maxLength: 400 } }) },
-  { name: "research_web", description: "Send an authorized query to Brave Search. Maximum two searches. Results are unverified snippets with low confidence, never personal deadlines or confirmed duration facts.", parameters: object({ query: { type: "string", minLength: 1, maxLength: 400 } }) }
+  { name: "research_web", description: "Send an authorized query to the configured web search provider. Maximum two searches. Results are unverified snippets with low confidence, never personal deadlines or confirmed duration facts.", parameters: object({ query: { type: "string", minLength: 1, maxLength: 400 } }) }
 ];
 function permittedTools(context) {
-  return [...tools, ...optionalTools.filter((tool) => tool.name === "search_personal_memory" ? context.memorySearch : context.webResearch)];
+  return [...tools.map((tool) => context.provider === "glm" && tool.name === "preview_plan" ? { ...tool, parameters: object({ proposal: wireSchema(context) }) } : tool), ...optionalTools.filter((tool) => tool.name === "search_personal_memory" ? context.memorySearch : context.webResearch)];
 }
 const ajv = new Ajv({ strict: false, validateFormats: false, allErrors: true });
 const validators = new Map([...tools, ...optionalTools].map((tool) => [tool.name, ajv.compile(tool.parameters)]));
 const problem = (path, message) => { throw new ContractError([{ path, code: "workflow", message }]); };
 
 function createToolSession(context, provider, model) {
+  const compactValidator = context.provider === 'glm' ? ajv.compile(object({ proposal: wireSchema(context) })) : null;
   const evidence = structuredClone(context.trustedEvidence);
   const seen = new Set();
   const research = [], allowed = new Set(permittedTools(context).map((tool) => tool.name)), counts = new Map();
@@ -41,14 +43,23 @@ function createToolSession(context, provider, model) {
   return {
     nextInstruction() {
       if (!read) return "read_evidence with offset 0 and limit 20";
+      if (context.provider === 'glm' && seen.size < evidence.length) return `read_evidence with offset ${evidence.findIndex((item) => !seen.has(item.id))} and limit 20 to read the remaining source sentences`;
       if (!inspected) return "get_planning_context with an empty argument object";
-      if (!preview) return "preview_plan with a complete proposal matching its argument schema; you may read more evidence first";
+      if (!preview) return "preview_plan with a complete proposal matching its argument schema. Preserve source action phrases in task titles. In compact mode use a string importance and effortMinutes array or null. With one journal the workflow supplies partial weekly context; do not emit weekly fields absent from the schema. Cite actual read IDs. Available read IDs: " + JSON.stringify([...seen].slice(0, 8));
       return `finish_analysis with previewId ${preview.previewId}; you may revise through preview_plan first`;
     },
     invalidatePreview() { preview = null; },
+
+    availableTools() {
+      const permitted = permittedTools(context);
+      if (!read || seen.size < evidence.length) return permitted.filter((tool) => tool.name === 'read_evidence');
+      if (!inspected) return permitted.filter((tool) => tool.name === 'read_evidence' || tool.name === 'get_planning_context');
+      if (preview) return permitted.filter((tool) => tool.name === 'finish_analysis');
+      return permitted.filter((tool) => !['finish_analysis', 'get_planning_context', 'read_evidence'].includes(tool.name));
+    },
     execute(name, args, signal) {
       if (name === "preview_plan") preview = null;
-      const validate = validators.get(name);
+      const validate = name === "preview_plan" && context.provider === "glm" ? compactValidator : validators.get(name);
       if (!validate || !allowed.has(name)) problem("/tool", "Tool is not permitted");
       if (!validate(args)) throw new ContractError(validate.errors.slice(0, 8).map(({ instancePath, keyword }) => ({
         path: instancePath || "/", code: keyword, message: "Arguments must match the declared tool schema"
@@ -91,7 +102,7 @@ function createToolSession(context, provider, model) {
       if (name === "preview_plan") {
         // A failed revision invalidates the previous preview: never finish a stale candidate.
         preview = null;
-        const proposal = args.proposal;
+        const proposal = context.provider === "glm" ? expandProposal(args.proposal) : args.proposal;
         assertSchema("proposal", proposal);
         const selectedId = context.journal.id || "input-journal-0";
         for (const id of proposal.summaryEvidenceIds) {
