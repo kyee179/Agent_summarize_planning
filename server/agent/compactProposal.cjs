@@ -36,10 +36,17 @@ function expandProposal(proposal) {
     summaryEvidenceIds: proposal.summaryEvidenceIds,
     weeklySummaryEvidenceIds: proposal.weeklySummaryEvidenceIds ?? proposal.summaryEvidenceIds, cautions: proposal.cautions || [], tasks, estimates };
 }
-/** Provide minimum reference counts when workflow-owned evidence is available. */
+/** Advertise selected-journal citation boundaries and minimum source counts. */
 function wireSchema(context) {
   const result = structuredClone(schema);
-  result.properties.summaryEvidenceIds.minItems = context.trustedEvidence.some((item) => item.sourceId === (context.journal.id || 'input-journal-0')) ? 1 : 0;
+  // Reference branches share an items object; isolate the journal-only restriction.
+  result.properties.summaryEvidenceIds = { ...result.properties.summaryEvidenceIds, items: { ...result.properties.summaryEvidenceIds.items } };
+  const selectedIds = context.trustedEvidence.filter((item) => item.sourceId === (context.journal.id || 'input-journal-0')).map((item) => item.id);
+  result.properties.summary.description = 'Summarize only the selected journal in one or two short sentences. Retrieved memory and web results belong to task context, not this journal summary.';
+  result.properties.summaryEvidenceIds.description = 'Cite only the selected-journal evidence IDs declared here. Do not include retrieved memory or web evidence.';
+  result.properties.summaryEvidenceIds.minItems = selectedIds.length ? 1 : 0;
+  if (selectedIds.length) result.properties.summaryEvidenceIds.items.enum = selectedIds;
+  else result.properties.summaryEvidenceIds.maxItems = 0;
   result.properties.weeklySummaryEvidenceIds.minItems = context.trustedEvidence.length ? 1 : 0;
   result.properties.weeklySummaryEvidenceIds.description = 'Read source IDs supporting partial weekly context; include the selected journal ID references even when no related journals exist.';
   const journals = new Set(context.trustedEvidence.filter((item) => item.sourceType === 'journal').map((item) => item.sourceId));

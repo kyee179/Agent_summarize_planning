@@ -69,15 +69,15 @@ References: [Tavily Search API](https://docs.tavily.com/documentation/api-refere
 
 ## 5. Verification and account handoff
 
-- Local verification: 146 tests (20 frontend, 126 server), offline evaluation, lint and production build passed. New tests cover compact/JSON-envelope safety, metric counterexamples, the real Tavily wire shape through a mock transport, automatic primary-calendar sync, one-button UI consent, native idle/gap filtering and cancellation.
+- Local verification: 149 tests (21 frontend, 128 server), offline evaluation, lint and production build passed. New tests cover compact/JSON-envelope safety, metric counterexamples, the real Tavily wire shape through a mock transport, automatic primary-calendar sync, one-button UI consent, native idle/gap filtering and cancellation.
 - Hidden Electron smoke passed using a temporary synthetic database, including the new connection cards and authenticated integration IPC.
 - GLM: the real three-case live evaluation passed as described above.
 - Built-in Windows helper: the real helper started, supplied three active samples, saved one app-only observation interval in a temporary database, and stopped cleanly. The earlier idle probe saved no intervals, as expected. App names were not printed, and the temporary database was deleted after the check.
 - Tavily: the supplied local key passed a real search for public Google Calendar OAuth documentation on 2026-10-15. Three HTTPS citations were returned with low-confidence, unverified labels and no confirmed task facts. The provider reported one credit. No personal data was sent.
-- Google credential handoff: the supplied downloaded OAuth JSON was validated as a Desktop app client on 2026-10-15. Its client ID and secret were imported into the ignored local environment, preserving the local encryption key. The read-only state/PKCE flow opened successfully in system Chrome and reached Google's WCal account chooser. User account selection/consent and real Calendar API sync are still pending; reaching the chooser alone does not establish a successful connection. The entire local `google_setup` folder is ignored and rejected by the private-path CI gate, including renamed downloads.
+- Google live verification: real desktop-app consent, encrypted refresh tokens, both read-only scopes, actual Calendar list and primary-calendar quick sync passed. The range covered eight local days plus buffers (192.5 hours), with zero busy intervals. No Calendar IDs, names or event content were printed or sent to AI. The local OAuth-download folder remains ignored and rejected by the private-path gate.
 - Credential handling: values from the private handoff were imported only into the ignored local environment. The handoff file, OAuth download filenames and environment files are excluded from Git; the quality gate rejects tracked private paths and recognizes Tavily/Google secret signatures. Do not distribute a shared Tavily secret in an Electron installer.
 
-Useful commands: `pnpm release:check`, `pnpm smoke:desktop`, and `pnpm eval:live`. After the Google handoff, test real Google connect/sync/disconnect and a synthetic GLM analysis with each optional source enabled. The standalone GLM, Tavily and native helper checks above passed; the combined account-connected workflow remains unverified. Avoid applying synthetic drafts to the user's real calendars. Save a final live-results matrix only after those checks complete.
+Useful commands: pnpm release:check, pnpm smoke:desktop, pnpm eval:live and the opt-in pnpm smoke:retrieval:live. See the completed verification matrix below for each test scope and limitation.
 
 ### Hosted CI correction
 
@@ -94,4 +94,33 @@ The corrected backend tracks an exchange separately from the unconsumed state. P
 
 The UI shows Connecting during pending authorization and stops polling only for explicit terminal outcomes. The private live harness follows the same rule. This prevents a temporary lack of a listener record from being treated as disconnection. State validation, PKCE, the two read-only scopes, token encryption, fixed endpoints and the bounded token request remain enforced.
 
-Regression coverage in `tests/integrations.test.cjs` holds the token response open while checking pending status, replay rejection, parallel-operation rejection and successful completion. The cancellation test also starts a new authorization before the old response arrives. The UI regression in `IntegrationSettings.test.jsx` verifies that polling survives an interim exchange response and synchronizes only after completion. Real Google token-endpoint reachability was separately confirmed with an unauthenticated diagnostic request (HTTP 400, no credentials sent). Local release verification passed: 148 tests (21 frontend and 127 server), quality policy, lint, offline evaluation, production build and the real Electron smoke using a temporary synthetic database. The real authorization/sync retry is still awaiting user consent at this record.
+Regression coverage in `tests/integrations.test.cjs` holds the token response open while checking pending status, replay rejection, parallel-operation rejection and successful completion. The cancellation test also starts a new authorization before the old response arrives. The UI regression in `IntegrationSettings.test.jsx` verifies that polling survives an interim exchange response and synchronizes only after completion. Real Google token-endpoint reachability was separately confirmed with an unauthenticated diagnostic request (HTTP 400, no credentials sent). Local release verification passed: 148 tests (21 frontend and 127 server), quality policy, lint, offline evaluation, production build and the real Electron smoke using a temporary synthetic database. Real user consent, token exchange and primary-calendar sync subsequently passed in the desktop app. Hosted Windows/Linux CI passed for callback fix a568554 (run 38732943685). See the completed matrix below.
+
+## GLM retrieval follow-up: advertise the journal citation boundary
+
+The ordinary live plan completed in 21.3 seconds with memory/web permission enabled, but the model chose no optional searches. That was a valid core plan, not proof of retrieval execution. A test-only adapter then selected the authorized memory and Tavily paths explicitly. Searches succeeded, but initial proposal turns exceeded the 30-second request budget. A reduced-output diagnostic exposed a second failure: retrieved source IDs appeared in `summaryEvidenceIds`, which is reserved for the selected journal. Validation correctly rejected them and repair consumed more time. Removing duplicate web snippets did not resolve the failure, so that experimental projection was not adopted.
+
+`server/agent/compactProposal.cjs` now describes the journal-only summary boundary in the tool schema and enumerates its allowed journal evidence IDs. With no selected-journal evidence, that list must be empty. The summary schema is copied independently so its enum cannot constrain task citations or contextual summaries. Task citations still accept authorized memory/web evidence. Canonical validators, source storage, scheduler, permissions, full research responses, and time/output limits are preserved. No summary text is silently rewritten to make a bad citation pass.
+
+The regression rejects a related-journal ID in the selected summary, then accepts that ID as task evidence and validates the completed contract. It also checks empty evidence. After this correction, the full live path completed twice in 31.1 and 30.5 seconds: `read_evidence → get_planning_context → search_personal_memory → research_web → preview_plan → finish_analysis`. Both had one actual SQLite lexical memory hit, one Tavily request/credit, three low-confidence citations, valid contracts and no fallback. These cases show integration execution, without establishing general latency or tool-selection quality.
+
+### Completed live verification matrix — 2026-10-15
+
+| Check | Observed result | Scope |
+| --- | --- | --- |
+| Google authorization | Passed | Real desktop-app consent; encrypted tokens including refresh token; both read-only scopes |
+| Google API and sync | Passed | Real calendar list and actual primary-calendar sync, 192.5-hour range, zero busy intervals; no writes |
+| GLM core planning | Passed | Three-case live gate plus a natural 21.3-second synthetic plan; that natural plan did not select optional tools |
+| GLM + memory + Tavily | Passed | Two synthetic forced-path probes, 31.1/30.5 seconds; valid plans and three low-confidence citations each |
+| Tavily direct search | Passed | Three public-documentation snippets; one reported credit |
+| Built-in Windows activity | Passed | Real helper start/sample/stop in a deleted temporary DB, plus idle filtering; app names not printed |
+| Automated release checks | Passed | 149 tests, quality policy, lint, offline evaluation, build, real Electron smoke on synthetic data |
+| Hybrid semantic retrieval | Not live-tested | Actual SQLite lexical retrieval passed; real Ollama embeddings and semantic quality remain unverified |
+| External ActivityWatch | Not live-tested | Advanced import needs a separate ActivityWatch service; bundled Windows collection is the tested alternative |
+| Google disconnect / refresh-token renewal | Mocked regression coverage | Working connection retained; no deliberate revocation or token-expiry wait |
+
+Run the opt-in `pnpm smoke:retrieval:live` to repeat the GLM/memory/Tavily probe. It uses real credentials and provider usage with synthetic data in in-memory SQLite. The test-only adapter selects a subset of already-authorized tools until both retrieval paths execute; it does not change production tool selection or permissions. Fixed `glm-4-flash` and Tavily use the unchanged 30-second request/60-second workflow budgets. Only safe status/counts go to ignored `evaluation/reports/retrieval-live.json`. Natural selection quality, snippet claim entailment and measured estimate accuracy remain separate evaluation work.
+
+Google verification reads stayed local to that integration. No personal calendar/journal payload was sent to AI, and no synthetic plans were applied to a real calendar. Credentials, reports and the original 25 user JSDoc edits remain outside these fix commits.
+
+Final unchanged-budget core live gate after the citation-schema fix: all three remote cases passed in 12.3, 10.1 and 16.9 seconds, without fallback. All task/summary/source validity gates passed with dataset 1.0.0, prompt 1.2.0 and metric 2.0.0. This is a synthetic regression gate, not a held-out quality benchmark.

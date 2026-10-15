@@ -53,3 +53,26 @@ test('metric version 2 tolerates grammar but still rejects negation and changed 
   assert.equal(actionMatch('Do not update CV', 'update my CV'), false); assert.equal(actionMatch('Delete my CV', 'update my CV'), false);
   assert.equal(actionMatch('Prepare interview', 'prepare the interview'), true);
 });
+
+test('compact summary references are constrained to the selected journal before optional retrieval', () => {
+  const ctx = context();
+  ctx.trustedEvidence.push({ ...ctx.trustedEvidence[0], id: 'related:1', sourceId: 'another-journal' });
+  const schema = wireSchema(ctx);
+  assert.deepEqual(schema.properties.summaryEvidenceIds.items.enum, [ctx.trustedEvidence[0].id]);
+  assert.match(schema.properties.summary.description, /only the selected journal/);
+  const session = createToolSession(ctx, 'glm', 'glm-4-flash');
+  session.execute('read_evidence', { offset: 0, limit: 20 }); session.execute('get_planning_context', {});
+  const candidate = { ...proposal(ctx), weeklySummary: 'Partial journal context.', weeklySummaryEvidenceIds: [ctx.trustedEvidence[0].id] };
+  candidate.summaryEvidenceIds = ['related:1'];
+  assert.throws(() => session.execute('preview_plan', { proposal: candidate }), ContractError);
+  candidate.summaryEvidenceIds = [ctx.trustedEvidence[0].id];
+  candidate.tasks[0].evidenceIds = ['related:1'];
+  candidate.weeklySummaryEvidenceIds = ['related:1'];
+  assert.doesNotThrow(() => session.execute('preview_plan', { proposal: candidate }));
+  const finished = session.execute('finish_analysis', { previewId: 'preview:1' }).finished.analysis;
+  assert.deepEqual(finished.contract.tasks[0].evidenceIds, ['related:1']);
+  assertAnalysis(finished);
+  const empty = wireSchema({ ...ctx, trustedEvidence: [] });
+  assert.equal(empty.properties.summaryEvidenceIds.minItems, 0);
+  assert.equal(empty.properties.summaryEvidenceIds.maxItems, 0);
+});
