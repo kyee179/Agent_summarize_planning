@@ -78,3 +78,7 @@ References: [Tavily Search API](https://docs.tavily.com/documentation/api-refere
 - Credential handling: values from the private handoff were imported only into the ignored local environment. The handoff file, OAuth download filenames and environment files are excluded from Git; the quality gate rejects tracked private paths and recognizes Tavily/Google secret signatures. Do not distribute a shared Tavily secret in an Electron installer.
 
 Useful commands: `pnpm release:check`, `pnpm smoke:desktop`, and `pnpm eval:live`. After the Google handoff, test real Google connect/sync/disconnect and a synthetic GLM analysis with each optional source enabled. The standalone GLM, Tavily and native helper checks above passed; the combined account-connected workflow remains unverified. Avoid applying synthetic drafts to the user's real calendars. Save a final live-results matrix only after those checks complete.
+
+### Hosted CI correction
+
+The first hosted Linux run found a timezone assumption in the new Google quick-sync test: it expected Shanghai timestamps while leaving app settings at the host default (UTC on the runner). The fixture now explicitly sets the app timezone to Asia/Shanghai and returns UTC as the Google calendar timezone. This checks that quick sync follows app settings independently of the host and calendar timezone. The test was rerun with a UTC process timezone. No production scheduling code or expected time interval was changed.

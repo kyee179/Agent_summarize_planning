@@ -54,12 +54,14 @@ test('Tavily search uses a fixed authenticated endpoint and bounded basic search
 });
 test('one-button Google sync chooses the actual primary calendar and reserves eight local days including buffers', async (t) => {
   const store = createStore(':memory:'); t.after(() => store.close());
+  // App timezone is explicit; CI hosts may default to UTC.
+  store.updateSettings({ timezone: 'Asia/Shanghai' });
   const env = { GOOGLE_CLIENT_ID: 'synthetic', INTEGRATION_ENCRYPTION_KEY: crypto.randomBytes(32).toString('base64') };
   store.setIntegrationState('googleTokens', vault(env).seal({ access_token: 'synthetic', expiresAt: Date.parse(now) + 3600000 }));
   let requestedCalendar = null;
   const service = createIntegrations(store, { env, clock: () => now, fetchImpl: async (url) => {
     const target = new URL(url);
-    if (target.pathname.endsWith('calendarList')) return response({ items: [{ id: 'other', summary: 'Other' }, { id: 'primary-id', summary: 'Primary', primary: true, timeZone: 'Asia/Shanghai' }] });
+    if (target.pathname.endsWith('calendarList')) return response({ items: [{ id: 'other', summary: 'Other' }, { id: 'primary-id', summary: 'Primary', primary: true, timeZone: 'UTC' }] });
     requestedCalendar = target.pathname; return response({ items: [] });
   } }); t.after(() => service.close());
   await assert.rejects(service.quickGoogleSync({ consent: false }), /consent/);
