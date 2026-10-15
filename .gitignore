@@ -20,3 +20,4 @@ server/data/
 /client_secret*.json
 
 /credentials.json
+/google_setup/

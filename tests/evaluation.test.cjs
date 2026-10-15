@@ -37,6 +37,6 @@ test('independent scheduling invariants catch a shifted conflicting allocation',
   assert.equal(scheduleSafe(output, item.events), false);
 });
 test('private data gate blocks telemetry, databases and env files but permits synthetic fixtures', () => {
-  for (const file of ['secret.txt', 'client_secret_desktop.json', 'credentials.json', '.env', '.env.local', 'server/data/private.json', 'calendar.sqlite-wal', 'telemetry/trace-0.jsonl', 'evaluation/reports/live.json']) assert.ok(privatePath(file), file);
+  for (const file of ['google_setup/renamed-oauth.json', 'secret.txt', 'client_secret_desktop.json', 'credentials.json', '.env', '.env.local', 'server/data/private.json', 'calendar.sqlite-wal', 'telemetry/trace-0.jsonl', 'evaluation/reports/live.json']) assert.ok(privatePath(file), file);
   for (const file of ['.env.example', 'evaluation/dataset.v1.json', 'server/recovery.cjs']) assert.equal(privatePath(file), false);
 });
