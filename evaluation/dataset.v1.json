@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "datasetVersion": "1.1.0",
+  "datasetVersion": "1.2.0",
   "origin": "Hand-authored synthetic regression cases; no personal records or model-generated labels.",
   "date": "2030-01-07",
   "analysis": [
@@ -278,6 +278,445 @@
       "summaryAnchors": [
         "不要安排"
       ]
+    },
+    {
+      "id": "zh-regression-01",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "未来动作",
+      "content": "我需要完成项目报告。",
+      "tasks": [
+        "完成项目报告"
+      ],
+      "summaryAnchors": [
+        "项目报告"
+      ]
+    },
+    {
+      "id": "zh-regression-02",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "否定需要",
+      "content": "我不需要更新CV。",
+      "tasks": [],
+      "summaryAnchors": [
+        "更新CV"
+      ]
+    },
+    {
+      "id": "zh-regression-03",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "无需",
+      "content": "无需准备面试。",
+      "tasks": [],
+      "summaryAnchors": [
+        "准备面试"
+      ]
+    },
+    {
+      "id": "zh-regression-04",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "不用",
+      "content": "不用整理实验数据。",
+      "tasks": [],
+      "summaryAnchors": [
+        "实验数据"
+      ]
+    },
+    {
+      "id": "zh-regression-05",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "取消",
+      "content": "我取消面试，不用准备了。",
+      "tasks": [],
+      "summaryAnchors": [
+        "取消面试"
+      ]
+    },
+    {
+      "id": "zh-regression-06",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "完成",
+      "content": "我已经完成项目报告。",
+      "tasks": [],
+      "summaryAnchors": [
+        "项目报告"
+      ]
+    },
+    {
+      "id": "zh-regression-07",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "提交",
+      "content": "我提交了申请。",
+      "tasks": [],
+      "summaryAnchors": [
+        "申请"
+      ]
+    },
+    {
+      "id": "zh-regression-08",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "准备过去",
+      "content": "我准备了面试资料。",
+      "tasks": [],
+      "summaryAnchors": [
+        "面试资料"
+      ]
+    },
+    {
+      "id": "zh-regression-09",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "未完成",
+      "content": "我还没完成项目报告。",
+      "tasks": [
+        "还没完成项目报告"
+      ],
+      "summaryAnchors": [
+        "项目报告"
+      ]
+    },
+    {
+      "id": "zh-regression-10",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "尚未",
+      "content": "项目报告尚未完成。",
+      "tasks": [
+        "尚未完成"
+      ],
+      "summaryAnchors": [
+        "项目报告"
+      ]
+    },
+    {
+      "id": "zh-regression-11",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "完成转待办",
+      "content": "我已经完成报告，但还需要准备答辩。",
+      "tasks": [
+        "准备答辩"
+      ],
+      "summaryAnchors": [
+        "准备答辩"
+      ]
+    },
+    {
+      "id": "zh-regression-12",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "全角",
+      "content": "我需要更新ＣＶ。",
+      "tasks": [
+        "更新ＣＶ"
+      ],
+      "summaryAnchors": [
+        "更新ＣＶ"
+      ]
+    },
+    {
+      "id": "zh-regression-13",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "中英混合",
+      "content": "我计划修复API接口。",
+      "tasks": [
+        "修复API接口"
+      ],
+      "summaryAnchors": [
+        "API接口"
+      ]
+    },
+    {
+      "id": "zh-regression-14",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "分号",
+      "content": "我需要整理实验记录；我需要更新CV。",
+      "tasks": [
+        "整理实验记录",
+        "更新CV"
+      ],
+      "summaryAnchors": [
+        "实验记录"
+      ]
+    },
+    {
+      "id": "zh-regression-15",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "重复",
+      "content": "我需要完成项目报告。我应该完成项目报告。",
+      "tasks": [
+        "完成项目报告"
+      ],
+      "summaryAnchors": [
+        "项目报告"
+      ]
+    },
+    {
+      "id": "zh-regression-16",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "明天",
+      "content": "明天我需要提交项目报告。",
+      "tasks": [
+        "提交项目报告"
+      ],
+      "summaryAnchors": [
+        "项目报告"
+      ]
+    },
+    {
+      "id": "zh-regression-17",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "下周",
+      "content": "下周五我需要准备面试。",
+      "tasks": [
+        "准备面试"
+      ],
+      "summaryAnchors": [
+        "面试"
+      ]
+    },
+    {
+      "id": "zh-regression-18",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "小数",
+      "content": "我需要用1.5小时完成项目报告。",
+      "tasks": [
+        "完成项目报告"
+      ],
+      "summaryAnchors": [
+        "项目报告"
+      ]
+    },
+    {
+      "id": "zh-regression-19",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "全角小数",
+      "content": "我需要用１．５小时完成项目报告。",
+      "tasks": [
+        "完成项目报告"
+      ],
+      "summaryAnchors": [
+        "项目报告"
+      ]
+    },
+    {
+      "id": "zh-regression-20",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "emoji",
+      "content": "我需要更新CV😀。",
+      "tasks": [
+        "更新CV"
+      ],
+      "summaryAnchors": [
+        "更新CV"
+      ]
+    },
+    {
+      "id": "zh-regression-21",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "问句不确定",
+      "content": "要不要准备面试？",
+      "tasks": [],
+      "summaryAnchors": [
+        "面试"
+      ]
+    },
+    {
+      "id": "zh-regression-22",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "推测",
+      "content": "可能需要整理项目资料。",
+      "tasks": [],
+      "summaryAnchors": [
+        "项目资料"
+      ]
+    },
+    {
+      "id": "zh-regression-23",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "条件",
+      "content": "如果获得批准，就需要提交申请。",
+      "tasks": [],
+      "summaryAnchors": [
+        "提交申请"
+      ]
+    },
+    {
+      "id": "zh-regression-24",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "条件排除",
+      "content": "除非收到邀请，否则需要准备面试。",
+      "tasks": [],
+      "summaryAnchors": [
+        "面试"
+      ]
+    },
+    {
+      "id": "zh-regression-25",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "否定计划",
+      "content": "我不打算准备面试。",
+      "tasks": [],
+      "summaryAnchors": [
+        "面试"
+      ]
+    },
+    {
+      "id": "zh-regression-26",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "已准备好",
+      "content": "我已经准备好面试。",
+      "tasks": [],
+      "summaryAnchors": [
+        "面试"
+      ]
+    },
+    {
+      "id": "zh-regression-27",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "日常过去",
+      "content": "今天参加了项目会议。",
+      "tasks": [],
+      "summaryAnchors": [
+        "项目会议"
+      ]
+    },
+    {
+      "id": "zh-regression-28",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "过去转未来",
+      "content": "我参加了会议，不过我需要整理会议记录。",
+      "tasks": [
+        "整理会议记录"
+      ],
+      "summaryAnchors": [
+        "会议记录"
+      ]
+    },
+    {
+      "id": "zh-regression-29",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "待办",
+      "content": "待办：检查项目报告。",
+      "tasks": [
+        "检查项目报告"
+      ],
+      "summaryAnchors": [
+        "项目报告"
+      ]
+    },
+    {
+      "id": "zh-regression-30",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "请完成",
+      "content": "请完成项目报告。",
+      "tasks": [
+        "完成项目报告"
+      ],
+      "summaryAnchors": [
+        "项目报告"
+      ]
+    },
+    {
+      "id": "zh-regression-31",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "必须",
+      "content": "我必须修复API接口。",
+      "tasks": [
+        "修复API接口"
+      ],
+      "summaryAnchors": [
+        "API接口"
+      ]
+    },
+    {
+      "id": "zh-regression-32",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "取消后新动作",
+      "content": "我取消面试，但我需要更新CV。",
+      "tasks": [
+        "更新CV"
+      ],
+      "summaryAnchors": [
+        "更新CV"
+      ]
+    },
+    {
+      "id": "zh-regression-33",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "保留否定范围",
+      "content": "不要更新CV，但我需要准备面试。",
+      "tasks": [
+        "准备面试"
+      ],
+      "summaryAnchors": [
+        "面试"
+      ]
+    },
+    {
+      "id": "zh-regression-34",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "混合过去未来",
+      "content": "The test passed. 我需要修复API接口。",
+      "tasks": [
+        "修复API接口"
+      ],
+      "summaryAnchors": [
+        "API接口"
+      ]
+    },
+    {
+      "id": "zh-regression-35",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "不想",
+      "content": "我不想准备面试。",
+      "tasks": [],
+      "summaryAnchors": [
+        "面试"
+      ]
+    },
+    {
+      "id": "zh-regression-36",
+      "split": "gate",
+      "language": "zh-CN",
+      "name": "技术名词",
+      "content": "我需要整理SQL索引方案。",
+      "tasks": [
+        "整理SQL索引方案"
+      ],
+      "summaryAnchors": [
+        "SQL索引"
+      ]
     }
   ],
   "scheduler": [
@@ -534,6 +973,16 @@
         "id": "memory:zh",
         "title": "合成项目",
         "content": "我需要完成项目报告。准备面试。"
+      },
+      {
+        "id": "memory:zh-api",
+        "title": "接口笔记",
+        "content": "接口调试与SQL索引优化，排查API超时。"
+      },
+      {
+        "id": "memory:zh-expense",
+        "title": "费用",
+        "content": "报销差旅费用。"
       }
     ],
     "queries": [
@@ -591,6 +1040,25 @@
         "relevant": [
           "memory:zh"
         ]
+      },
+      {
+        "id": "zh-interface",
+        "query": "接口",
+        "relevant": [
+          "memory:zh-api"
+        ]
+      },
+      {
+        "id": "zh-fullwidth",
+        "query": "ＡＰＩ",
+        "relevant": [
+          "memory:zh-api"
+        ]
+      },
+      {
+        "id": "zh-no-unrelated",
+        "query": "签证",
+        "relevant": []
       }
     ],
     "fusion": [

@@ -1,10 +1,9 @@
 // Offsets are UTF-16 indices, so content.slice(start, end) reproduces each excerpt.
 function chunks(content, size = 4000) {
   const text = String(content || ''), result = [];
-  for (const match of text.matchAll(/[^\n.!?。！？]+/gu)) {
-    const leading = match[0].length - match[0].trimStart().length;
-    const end = match.index + match[0].trimEnd().length;
-    for (let start = match.index + leading; start < end;) {
+  for (const span of require('../language.cjs').sentenceSpans(text)) {
+    const end = span.end;
+    for (let start = span.start; start < end;) {
       let next = Math.min(end, start + size);
       if (next < end && /[\uD800-\uDBFF]/.test(text[next - 1])) --next;
       result.push({ start, end: next, excerpt: text.slice(start, next) });

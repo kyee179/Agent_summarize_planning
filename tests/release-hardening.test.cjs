@@ -31,7 +31,7 @@ test('long paragraphs retain exact spans; evidence-budget omissions are visible'
   const partial = await analyzeJournal({ ...input, journal: { ...journal, content: '我需要完成项目报告。'.repeat(105) } });
   assert.equal(partial.evidenceCoverage.partial, true);
   assert.ok(partial.evidenceCoverage.sources[0].omittedCharacters > 0);
-  assert.ok(partial.cautions.some(c => c.includes('Partial analysis')));
+  assert.ok(partial.cautions.some(c => /Partial analysis|部分分析/u.test(c)));
 });
 
 test('Chinese evidence paging stays under byte limits and makes progress without skipped IDs', () => {

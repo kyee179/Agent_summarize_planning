@@ -25,7 +25,7 @@ export function useWorkspace() {
   const [loading, setLoading] = useState(true), [eventLoading, setEventLoading] = useState(false);
   const [loadingError, setLoadingError] = useState('');
   const [notice, setNotice] = useState(null), [journalState, setJournalState] = useState('New entry');
-  const [options, setOptions] = useState({ targetDate: dateKey(new Date()), customAvailability: false, startsAt: '09:00', endsAt: '17:00', includeActivity: false, allowMemory: false, allowWebResearch: false });
+  const [options, setOptions] = useState({ outputLanguage: 'auto', targetDate: dateKey(new Date()), customAvailability: false, startsAt: '09:00', endsAt: '17:00', includeActivity: false, allowMemory: false, allowWebResearch: false });
   const [now, setNow] = useState(new Date());
   const [operationActive, setOperationActive] = useState(false);
   const contextRevision = useRef(0);
@@ -128,7 +128,7 @@ export function useWorkspace() {
       const saved = await saveJournal();
       if (!saved) { setPhase('idle'); return; }
       setPhase('generating'); setPage('plan');
-      const request = { targetDate: options.targetDate, includeActivity: options.includeActivity, allowMemory: options.allowMemory, allowWebResearch: options.allowWebResearch };
+      const request = { outputLanguage: options.outputLanguage || 'auto', targetDate: options.targetDate, includeActivity: options.includeActivity, allowMemory: options.allowMemory, allowWebResearch: options.allowWebResearch };
       if (options.customAvailability) request.availability = [{ label: 'This plan', startsAt: options.startsAt, endsAt: options.endsAt }];
       const result = await api.analyzeJournal(saved.id, request);
       if (sequence !== journalSequence.current || revision !== contextRevision.current || result.journalId !== saved.id) {

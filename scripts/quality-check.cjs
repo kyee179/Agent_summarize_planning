@@ -22,6 +22,8 @@ function check() {
   if (policy.policyHash !== policyHash) fail('Pinned prompt content changed; review and update the release policy.');
   if (dataset.schemaVersion !== 1 || dataset.datasetVersion !== policy.datasetVersion || dataset.analysis.filter((r) => r.split === 'gate').length < 12 || dataset.analysis.filter((r) => r.split === 'challenge').length < 8 || dataset.scheduler.length < 10 || dataset.memory.queries.length < 6) fail('Required evaluation coverage missing.');
   if (policy.datasetHash !== crypto.createHash('sha256').update(JSON.stringify(dataset)).digest('hex')) fail('Dataset or thresholds changed; review and update the release policy.');
+  const chineseCases = dataset.analysis.filter(item => item.split === 'gate' && item.language === 'zh-CN');
+  if (chineseCases.length < 36 || chineseCases.some(item => !item.summaryAnchors.length)) fail('Required Chinese action and summary coverage missing.');
   for (const items of [dataset.analysis, dataset.scheduler, dataset.memory.queries]) if (new Set(items.map((item) => item.id)).size !== items.length) fail('Evaluation IDs must be unique.');
   const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   if (files.some(privatePath)) fail('Private data or credentials path is tracked.');

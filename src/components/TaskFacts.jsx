@@ -25,6 +25,9 @@ export function TaskFacts({ task, record, tasks, timezone, onClose, onSaved }) {
   }
   return <Dialog title="Confirm task facts" onClose={onClose} busy={saving}><form onSubmit={submit}><div className="dialog-body"><p>These are your confirmed facts. Generate a new plan after saving; existing calendar events keep their reviewed times.</p>
     {record.candidates?.deadlineDate && <p className="caution">Source date suggestion: {record.candidates.deadlineDate} {record.candidates.deadlineTime || '(time unspecified)'} in {record.candidates.timezone}. Check the source and choose an explicit time below to confirm it.</p>}
+    {record.candidates?.deadlineInstant && !record.candidates.ambiguities?.length && <button type="button" className="secondary-button" onClick={()=>setDeadline(inputTime(record.candidates.deadlineInstant,timezone))}>Use source date suggestion</button>}
+    {record.candidates?.period && !record.candidates.deadlineTime && <p className="helper">The source names a time of day ({record.candidates.period}), but no exact hour. Choose a time to confirm.</p>}
+    {record.candidates?.ambiguities?.map(message=><p key={message} className="caution">{message}</p>)}
     <fieldset disabled={saving} className="editor-fields"><label>Task title<input required maxLength={500} value={title} onChange={e => setTitle(e.target.value)} /></label>
       <label>Task status<select value={status} onChange={e => setStatus(e.target.value)}>{['open', 'in_progress', 'blocked', 'completed', 'cancelled'].map(v => <option key={v} value={v}>{v.replaceAll('_', ' ')}</option>)}</select></label>
       <label>Confirmed deadline ({timezone})<input type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} /></label>

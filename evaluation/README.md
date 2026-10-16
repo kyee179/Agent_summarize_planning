@@ -2,7 +2,7 @@
 
 All cases are invented examples. They contain no journals, accounts, browser history, real deadlines, or credentials. Labels were authored alongside this regression suite; **this is a development set, not an independent benchmark**. Dataset version and SHA-256 are recorded in every report. Change labels and thresholds in a reviewed commit with a reason.
 
-`pnpm eval` evaluates the actual local analyzer, deterministic scheduler, SQLite FTS retrieval and rank fusion. Twelve everyday English cases gate regression. Eight challenge cases expose current gaps and remain visible in every report; they are not release gates yet. Promoting a challenge case requires implementation and a documented threshold change. Ten scheduling scenarios gate exact allocations and constraint checks. Six queries evaluate lexical retrieval; three fusion cases test mechanics using synthetic ranks, not embedding quality.
+`pnpm eval` evaluates the actual local analyzer, deterministic scheduler, SQLite FTS retrieval and rank fusion. Dataset 1.2.0 contains 54 English/Chinese/mixed-language gate cases, including 36 newly authored Chinese regressions. Eight challenge cases expose current gaps and remain visible in every report; they are not release gates yet. Promoting a challenge case requires implementation and a documented threshold change. Ten scheduling scenarios gate exact allocations and constraint checks. Eleven queries evaluate lexical retrieval; three fusion cases test mechanics using synthetic ranks, not embedding quality.
 
 Metrics:
 
@@ -14,6 +14,10 @@ Metrics:
 - Retrieval: document-level Recall@3 and reciprocal rank of the first relevant result; empty queries must return no documents. Fusion mechanics are separate from actual semantic Recall@k.
 
 `pnpm eval:live` explicitly sends the first three synthetic examples through the configured provider (at most 3 × 60 seconds workflow budget). It loads the ignored local `.env`, performs no personal retrieval or web research, and reports completed workflows separately from fallback. It fails unless **all** runs complete remotely, validate, and meet the same phrase metrics. Provider fallback cannot masquerade as a successful live evaluation. No credentials are required or injected in CI. Reports go to ignored `evaluation/reports`; only synthetic reports are eligible for CI upload.
+
+`pnpm eval:chinese:live` uses three explicit Chinese fixtures covering an action, negation and mixed completed/future work. It additionally requires Chinese output. It shares the same budgets, synthetic-only inputs and completion gate; the report is `evaluation/reports/live-chinese.json`.
+
+Metric 3.0.0 adds Chinese negation/completion mismatch checks and separate English/Chinese gates for actions, summary anchors, validity, citations and uncertainty. Numeric thresholds are unchanged. Compare versions using the same metric; these lexical development-set scores are not semantic accuracy or an independent benchmark. See [Chinese language handling](../docs/CHINESE_LANGUAGE.md) for implementation and limitations.
 
 ## Human review before a pilot release
 

@@ -290,6 +290,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
   app.post("/api/journals/:id/analyze", async (req, res) => {
     const journal = store.getJournal(req.params.id);
     if (!journal) return res.status(404).json({ error: "Journal not found" });
+    if (req.body.outputLanguage !== undefined && !['auto','zh-CN','en'].includes(req.body.outputLanguage)) return res.status(400).json({ error: 'Choose auto, zh-CN or en for analysis language' });
 
     const settings = store.getSettings();
     const asOf = clock();
@@ -311,6 +312,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
       journal,
       relatedJournals,
       settings,
+      outputLanguage: req.body.outputLanguage,
       availability, targetDate, existingEvents, notBefore: new Date(Date.parse(asOf) + (settings.planningLeadMinutes || 5) * 60000).toISOString()
     });
     const result = scheduleAnalysis(interpreted, { events: existingEvents, settings, notBefore: new Date(Date.parse(clock()) + (settings.planningLeadMinutes || 5) * 60000).toISOString(),

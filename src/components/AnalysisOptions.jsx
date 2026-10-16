@@ -18,6 +18,7 @@ export function AnalysisOptions({ options, onChange, onClose, status, settings, 
     <div className="dialog-body"><p className="muted">Choose the context for your next plan.</p>
       <div className="field-grid"><label>Plan for<input type="date" required value={options.targetDate} onChange={e => onChange({ ...options, targetDate: e.target.value })} /></label>
         <div className="timezone-label"><span>Timezone</span><strong>{settings.timezone}</strong></div></div>
+      <label>Analysis language<select value={options.outputLanguage || 'auto'} onChange={e=>onChange({...options,outputLanguage:e.target.value})}><option value="auto">Match the journal language</option><option value="zh-CN">简体中文</option><option value="en">English</option></select></label>
       <label className="check-row"><input type="checkbox" checked={options.customAvailability} onChange={e => onChange({ ...options, customAvailability: e.target.checked })} />Choose different available hours for this plan</label>
       {options.customAvailability ? <div className="field-grid"><label>Available from<input type="time" required value={options.startsAt} onChange={e => onChange({ ...options, startsAt: e.target.value })} /></label><label>Available until<input type="time" required value={options.endsAt} onChange={e => onChange({ ...options, endsAt: e.target.value })} /></label></div>
         : <p className="helper">Uses your available hours in Settings: {(settings.defaultAvailability || []).map(x => `${x.startsAt}–${x.endsAt}`).join(', ') || 'not set'}.</p>}

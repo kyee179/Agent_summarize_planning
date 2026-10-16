@@ -77,16 +77,20 @@ function attach(db, transaction) {
       if (!item && sameTitle.length === 1 && candidates.filter(c => normalize(c.task.title) === normalize(task.title)).length === 1) item = sameTitle[0];
       const sameSource = known.filter(t => !used.has(t.id) && t.sourceKey === sourceKey);
       if (!item && sameSource.length === 1 && candidates.filter(t => t.sourceKey === sourceKey).length === 1) item = sameSource[0];
+      const source = task.evidenceIds.map(id => byId.get(id)).find(e => e?.sourceType === 'journal');
+      const sourceJournal = source ? JSON.parse(db.prepare('SELECT data FROM journals WHERE id=?').get(source.sourceId)?.data || '{}') : {};
+      // Narrow to a source-matched clause when possible; model-added dates are never source suggestions.
+      const candidateText = source?.excerpt.includes(task.description) && /[0-9０-９年月天周点时分]|明天|后天/u.test(task.description) ? task.description : source?.excerpt || '';
+      const sourceCandidates = require('./taskCandidates.cjs').candidates(candidateText, { date: sourceJournal.journalDate, timezone: contract.plan.timezone });
       if (!item) {
-        const source = task.evidenceIds.map(id => byId.get(id)).find(e => e?.sourceType === 'journal');
-        const sourceJournal = source ? JSON.parse(db.prepare('SELECT data FROM journals WHERE id=?').get(source.sourceId)?.data || '{}') : {};
         item = { id: `task:${crypto.randomUUID()}`, profileId: profile, journalId: analysis.journalId, identity, sourceKey,
           title: task.title, status: 'open', revision: 1, generation: 0, confirmed: {},
-          candidates: require('./taskCandidates.cjs').candidates(source?.excerpt || task.description, { date: sourceJournal.journalDate, timezone: contract.plan.timezone }),
+          candidates: sourceCandidates,
           ambiguousMatch: sameTitle.length > 1 || sameSource.length > 1,
           createdAt: analysis.createdAt || new Date().toISOString() };
         put(item); known.push(item);
       }
+      if (JSON.stringify(item.candidates) !== JSON.stringify(sourceCandidates)) { item = { ...item, candidates: sourceCandidates }; put(item); }
       mapping.set(task.id, item.id); records.set(item.id, item);
       used.add(item.id);
       revisions.push({ id: item.id, revision: item.revision, generation: item.generation, sessionsHash: hash(sessions(item)) });

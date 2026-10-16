@@ -51,6 +51,7 @@ function contractAnalysis(result, contract, context = {}) {
   return { ...result, contract, ...projectContract(contract) };
 }
 function assertAnalysis(analysis, context = {}) {
+  if (analysis.outputLanguage !== undefined && !['zh-CN','en'].includes(analysis.outputLanguage)) throw new ContractError([{path:'/outputLanguage',code:'language',message:'Expected a resolved analysis language'}]);
   if (!analysis.contract) throw new ContractError([{ path: "/contract", code: "required", message: "New analyses need a versioned planning contract" }]);
   assertBundle(analysis.contract, context);
   if (analysis.research !== undefined) {

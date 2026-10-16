@@ -42,18 +42,26 @@ function createMemory(store, { fetchImpl, env = process.env, clock = () => new D
       const report = store.reindexMemory(store.listJournals());
       const chunks = store.memoryChunks();
       if (!input.semantic) return { ...report, mode: 'lexical', model, embedded: 0 };
-      let embedded = 0; const deadline = Date.now() + 50000; indexing = true;
+      let embedded = 0, revision = null; const deadline = Date.now() + 50000; indexing = true;
       try {
-        const revision = await identity();
+        revision = await identity();
+        const compatible=chunks.filter(item=>item.model===revision&&item.embeddingModel===model&&item.embedding);
+        const pending=chunks.filter(item=>!compatible.some(current=>current.id===item.id));
+        let dimension=compatible[0]?.embedding.length;
+        embedded=compatible.length;
+        let embeddedThisRun=0;
         // Bounded index job: at most 32 batches / 256 chunks and 50 seconds. Remaining chunks retain lexical search.
-        for (let offset = 0; offset < Math.min(256, chunks.length); offset += 8) {
+        for (let offset = 0; offset < Math.min(256, pending.length); offset += 8) {
           if (Date.now() >= deadline) throw error('Embedding job budget exhausted');
-          const batch = chunks.slice(offset, Math.min(offset + 8, 256));
-          store.saveEmbeddings(batch, await embed(batch.map((item) => item.content), undefined, Math.min(10000, deadline - Date.now())), revision, model);
-          embedded += batch.length;
+          const batch = pending.slice(offset, Math.min(offset + 8, 256));
+          const vectors=await embed(batch.map(item=>item.content),undefined,Math.min(10000,deadline-Date.now()));
+          if(dimension && vectors.some(vector=>vector.length!==dimension)) throw error('Embedding dimension changed');
+          dimension ||= vectors[0].length;
+          store.saveEmbeddings(batch,vectors,revision,model);
+          embedded+=batch.length; embeddedThisRun+=batch.length;
         }
-        return { ...report, mode: embedded ? 'hybrid' : 'lexical', model, embedded, partial: embedded < chunks.length };
-      } catch { return { ...report, mode: embedded ? 'hybrid' : 'lexical', model, embedded, partial: true, warning: 'Embedding job incomplete. Keyword search is ready; check Ollama/model and retry. Partial embeddings remain usable.' }; }
+        return { ...report, mode: embedded ? 'hybrid' : 'lexical', model, embedded, embeddedThisRun, remaining: chunks.length-embedded, partial: embedded < chunks.length };
+      } catch { return { ...report, mode: embedded ? 'hybrid' : 'lexical', model, embedded, remaining: chunks.length-embedded, partial: true, warning: 'Embedding job incomplete. Keyword search is ready; check Ollama/model and retry. Partial embeddings remain usable.' }; }
       finally { indexing = false; }
     },
     async search(input, signal) {
@@ -73,6 +81,7 @@ function createMemory(store, { fetchImpl, env = process.env, clock = () => new D
             .filter((item) => item.cosine > 0).sort((a, b) => b.cosine - a.cosine || a.id.localeCompare(b.id)).slice(0, 100);
         } catch { warning = 'Semantic search unavailable or model changed; showing keyword matches. Check Ollama and rebuild the index.'; }
       }
+      if (/\p{Script=Han}/u.test(text) && candidates.length) warning = [warning, 'Chinese semantic retrieval quality has not been measured for the installed model; keyword matches remain available.'].filter(Boolean).join(' ');
       const items = fuse(lexical, semantic, limit);
       return { mode: semantic.length ? 'hybrid' : 'lexical', model, warning, items,
         evidence: items.map((item) => ({ id: item.id, sourceType: item.sourceType, sourceId: item.sourceId, sourceVersion: item.sourceVersion,

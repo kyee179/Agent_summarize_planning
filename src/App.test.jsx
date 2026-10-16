@@ -63,7 +63,7 @@ describe('redesigned daily workflow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Prepare plan' }));
     await screen.findByRole('button', { name: 'Generate summary and plan' });
     fireEvent.click(screen.getByRole('button', { name: 'Generate summary and plan' }));
-    await waitFor(() => expect(api.analyzeJournal).toHaveBeenCalledExactlyOnceWith('j', { targetDate: day, includeActivity: true, allowMemory: false, allowWebResearch: false }));
+    await waitFor(() => expect(api.analyzeJournal).toHaveBeenCalledExactlyOnceWith('j', { targetDate: day, includeActivity: true, allowMemory: false, allowWebResearch: false, outputLanguage: 'auto' }));
     await screen.findByText('Ready for review');
     expect(api.applyDrafts).not.toHaveBeenCalled();
   });

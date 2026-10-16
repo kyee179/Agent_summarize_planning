@@ -76,10 +76,15 @@ app.on("browser-window-created", (_event, window) => {
         await until(() => document.querySelector('.settings-save').textContent.includes('Settings saved.'), 'Settings UI save failed');
         navigate('Journal');
         await until(() => document.querySelector('.journal-textarea'), 'Journal editor missing');
-        changeInput(document.querySelector('.journal-title'), 'Planning the next release');
-        changeInput(document.querySelector('.journal-textarea'), 'I need to study the project. I reviewed the agent workflow today and want to make room for focused work.');
+        changeInput(document.querySelector('.journal-title'), '合成日记：发布准备');
+        const chineseText = '我需要完成项目报告。今天检查了ＡＰＩ接口。😀';
+        changeInput(document.querySelector('.journal-textarea'), chineseText);
         Array.from(document.querySelector('.journal-editor').querySelectorAll('button')).find(button => button.textContent === 'Save journal').click();
         await until(() => document.querySelector('.journal-save-state').textContent.startsWith('Saved'), 'Journal UI save failed');
+        const unicodeJournal = (await call('/api/journals')).body.find(item => item.title === '合成日记：发布准备');
+        if (unicodeJournal?.content !== chineseText) throw new Error('Unicode journal save roundtrip failed');
+        const chineseAnalysis = await call('/api/journals/' + unicodeJournal.id + '/analyze', { method: 'POST', body: JSON.stringify({ targetDate: '2030-01-08' }) });
+        if (chineseAnalysis.status !== 201 || chineseAnalysis.body.outputLanguage !== 'zh-CN' || chineseAnalysis.body.contract.tasks.length !== 1 || !chineseAnalysis.body.summary.includes('项目报告')) throw new Error('Chinese IPC analysis failed');
         const customize = document.querySelector('.journal-analysis-prompt button'); customize.click();
         await until(() => document.querySelector('dialog[open]'), 'Analysis customization did not open');
         const sheet = document.querySelector('dialog[open]');

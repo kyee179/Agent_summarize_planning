@@ -61,3 +61,6 @@ Local rules work without external credentials. This implements user-owned creden
 Use `pnpm release:check`, `pnpm smoke:desktop` and `pnpm smoke:web`. New regressions live in `tests/release-hardening.test.cjs` and `src/releaseHardening.test.jsx`; the desktop smoke also checks the real secure-setup bridge and persistent session linkage. All test databases and setup values are synthetic. No paid-provider request or real account operation is required by these checks.
 
 The current run's final counts and limitations are recorded in PROJECT_BRIEF.md. Public installer/signing/clean-machine verification, live multilingual provider evaluation, real OS notification delivery and production account readiness remain release gates.
+## Follow-up
+
+The subsequent [Chinese language pass](CHINESE_LANGUAGE.md) adds composition guards, output-language controls, source-relative date interpretation, stronger negation checks, resumable embeddings and expanded language gates. It records live-provider variability and remaining validation limits separately.
