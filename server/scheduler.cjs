@@ -50,7 +50,7 @@ function calendarContext(plan, events) {
 }
 function settingsFingerprint(settings, availabilitySource) {
   const slots = settings.defaultAvailability || [];
-  return hash({ timezone: settings.timezone || "UTC", ...(availabilitySource === "settings" ? { availability:
+  return hash({ timezone: settings.timezone || "UTC", planningLeadMinutes: settings.planningLeadMinutes || 5, ...(availabilitySource === "settings" ? { availability:
     slots.map(({ startsAt, endsAt }) => [startsAt, endsAt]).sort((a, b) => compareId(a.join("/"), b.join("/"))) } : {}) });
 }
 function inputBundle(bundle) {

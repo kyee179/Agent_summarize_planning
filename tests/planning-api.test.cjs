@@ -154,13 +154,13 @@ test("unrelated events/title edits do not invalidate a plan and retries survive 
 test("elapsed starts are rejected and historical journals default to today's date", async (t) => {
   const { request, store, setTime } = await fixture(t);
   const analysis = await request("/api/journals/j/analyze", {});
-  setTime("2026-10-11T12:01:00Z");
+  setTime("2026-10-11T12:06:00Z");
   assert.equal((await request("/api/journals/j/apply-drafts", { analysisId: analysis.body.id })).status, 409);
   store.updateJournal("j", { journalDate: "2026-10-02" });
   const today = await request("/api/journals/j/analyze", {});
   assert.equal(today.status, 201);
   assert.equal(today.body.contract.plan.targetDate, "2026-10-11");
-  assert.equal(today.body.contract.plan.blocks[0].startsAt, "2026-10-11T12:01:00.000Z");
+  assert.equal(today.body.contract.plan.blocks[0].startsAt, "2026-10-11T12:11:00.000Z");
   const past = await request("/api/journals/j/analyze", { targetDate: "2026-10-02" });
   assert.equal(past.body.contract.plan.blocks.length, 0);
   assert.equal((await request("/api/journals/j/analyze", { targetDate: "2026-02-30" })).status, 422);

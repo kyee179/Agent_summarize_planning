@@ -8,7 +8,7 @@ const { privatePath } = require('../scripts/quality-check.cjs');
 test('offline dataset passes actual analyzer/scheduler/FTS gates while reporting challenge failures', async () => {
   const result = await runEvaluation();
   assert.equal(result.passed, true, JSON.stringify(result.gates));
-  assert.equal(result.analysis.gate.cases, 12); assert.equal(result.analysis.challenge.cases, 8);
+  assert.equal(result.analysis.gate.cases, 54); assert.equal(result.analysis.challenge.cases, 8);
   assert.ok(result.analysis.challenge.taskRecall < 1);
   assert.equal(result.retrieval.mode, 'actual_sqlite_lexical'); assert.equal(result.fusion.mode, 'synthetic_rank_mechanics');
   assert.equal(result.datasetHash.length, 64);
@@ -29,6 +29,14 @@ test('live evaluation cannot pass by returning the validated local fallback', as
   assert.equal(result.passed, false);
   assert.equal(result.gates.find((g) => g.metric === 'remoteCompletionRate').value, 0);
 });
+test('Chinese live evaluation selects action, negation and mixed completion fixtures and requires Chinese output', async () => {
+  const seen=[];
+  const report=await runEvaluation({live:true,language:'zh-CN',analyze:async input=>{
+    seen.push(input.journal.id);return {...localRuleBasedAnalysis(input),outputLanguage:'en',agentWorkflow:{outcome:'completed',stopReason:'finished',summaryEvidenceIds:[]}};
+  }});
+  assert.deepEqual(seen,['eval:zh-regression-01','eval:zh-regression-02','eval:zh-regression-11']);
+  assert.equal(report.gates.find(gate=>gate.metric==='chineseOutputRate').passed,false);
+});
 test('independent scheduling invariants catch a shifted conflicting allocation', () => {
   const item = dataset.scheduler[0];
   const output = scheduleBundle(schedulerBundle(item), { events: item.events }).contract;
@@ -37,6 +45,6 @@ test('independent scheduling invariants catch a shifted conflicting allocation',
   assert.equal(scheduleSafe(output, item.events), false);
 });
 test('private data gate blocks telemetry, databases and env files but permits synthetic fixtures', () => {
-  for (const file of ['google_setup/renamed-oauth.json', 'secret.txt', 'client_secret_desktop.json', 'credentials.json', '.env', '.env.local', 'server/data/private.json', 'calendar.sqlite-wal', 'telemetry/trace-0.jsonl', 'evaluation/reports/live.json']) assert.ok(privatePath(file), file);
+  for (const file of ['google_setup/renamed-oauth.json', 'secret.txt', 'client_secret_desktop.json', 'credentials.json', 'credentials.encrypted', 'credentials.encrypted.tmp', '.env', '.env.local', 'server/data/private.json', 'calendar.sqlite-wal', 'telemetry/trace-0.jsonl', 'evaluation/reports/live.json']) assert.ok(privatePath(file), file);
   for (const file of ['.env.example', 'evaluation/dataset.v1.json', 'server/recovery.cjs']) assert.equal(privatePath(file), false);
 });

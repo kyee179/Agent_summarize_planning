@@ -11,14 +11,14 @@ const { createStore } = require('../server/store.cjs');
 const { createMemory, fuse } = require('../server/integrations/memory.cjs');
 const { loadSkills } = require('../server/agent/skills.cjs');
 const dataset = JSON.parse(fs.readFileSync(path.join(__dirname, 'dataset.v1.json'), 'utf8'));
-const METRIC_VERSION = '2.0.0';
+const METRIC_VERSION = '3.0.0';
 const defaultAvailability = [{ startsAt: '09:00', endsAt: '17:00' }];
 const stopWords = new Set(['a', 'an', 'the', 'my', 'your', 'our', 'their', 'his', 'her', 'to', 'for', 'of', 'on', 'in', 'at']);
 function normalizedWords(value) {
   return (value.toLowerCase().match(/[\p{L}\p{N}]+/gu) || []).filter((word) => !stopWords.has(word))
     .map((word) => /^[a-z]{5,}$/.test(word) ? word.replace(/(?:ing|ed|s)$/, '').replace(/e$/, '') : word);
 }
-// Version 2 tolerates articles/pronouns and simple verb inflection; word order and negation remain.
+// Version 3 also guards explicit Chinese negation/completion; source text stays unchanged.
 function contains(text, phrase) {
   if (typeof text !== 'string') return false;
   if (text.toLowerCase().includes(phrase.toLowerCase())) return true;
@@ -26,7 +26,7 @@ function contains(text, phrase) {
   return expected.length > 0 && actual.some((_, i) => expected.every((word, j) => word === actual[i + j]));
 }
 function actionMatch(text, phrase) {
-  const negative = /\b(?:not|never|cancelled|canceled|don't)\b/i;
+  const negative = /\b(?:not|never|cancelled|canceled|don't)\b|不需要|无需|不用|不要|取消|已经完成|已完成|完成了/iu;
   return typeof text === 'string' && negative.test(text) === negative.test(phrase) && contains(text, phrase);
 }
 const fraction = (good, total) => total ? good / total : 1;
@@ -52,8 +52,9 @@ function scoreAnalysis(item, result) {
   const estimates = result?.contract?.estimates || [];
   const safe = tasks.every((task) => task.deadline === null) && estimates.every((estimate) => estimate.confidence === 'low');
   const anchors = item.summaryAnchors.filter((phrase) => contains(result?.summary, phrase)).length;
-  return { id: item.id, split: item.split, matched, expected: item.tasks.length, proposed: tasks.length,
+  return { id: item.id, split: item.split, language: item.language || require('../server/language.cjs').outputLanguage(item.content), matched, expected: item.tasks.length, proposed: tasks.length,
     coveredAnchors: anchors, anchors: item.summaryAnchors.length, valid, cited, safe,
+    chineseOutput: result?.outputLanguage === 'zh-CN' && /\p{Script=Han}/u.test(result?.summary || ''),
     explicitDeadlineExtracted: item.explicitDeadline ? tasks.some((task) => task.deadline?.at === item.explicitDeadline) : null,
     outcome: result?.agentWorkflow?.outcome || 'error', reason: result?.agentWorkflow?.stopReason || 'validation',
     durationMs: result?.agentWorkflow?.elapsedMs || 0, requestBytes: result?.agentWorkflow?.requestBytes || 0 };
@@ -103,12 +104,13 @@ function gates(metrics, thresholds) {
   return Object.entries(thresholds).map(([metric, minimum]) => ({ metric, value: metrics[metric] ?? null, minimum,
     passed: Number.isFinite(metrics[metric]) && metrics[metric] >= minimum }));
 }
-async function runEvaluation({ live = false, analyze = analyzeJournal, onCase } = {}) {
+async function runEvaluation({ live = false, language = null, analyze = analyzeJournal, onCase } = {}) {
   const previous = process.env.AI_PROVIDER;
   if (!live) process.env.AI_PROVIDER = 'local';
   const started = performance.now(), rows = [], usage = { reportedResponses: 0, inputTokens: 0, outputTokens: 0 };
   try {
-    for (const item of live ? dataset.analysis.slice(0, 3) : dataset.analysis) {
+    const selected = live && language === 'zh-CN' ? dataset.analysis.filter(item => ['zh-regression-01', 'zh-regression-02', 'zh-regression-11'].includes(item.id)) : dataset.analysis.slice(0, 3);
+    for (const item of live ? selected : dataset.analysis) {
       const caseStarted = performance.now();
       try { rows.push(scoreAnalysis(item, await analyze({ ...inputFor(item), observe: (event) => {
         if (event.kind === 'provider' && Number.isSafeInteger(event.inputTokens) && Number.isSafeInteger(event.outputTokens)) {
@@ -129,6 +131,7 @@ async function runEvaluation({ live = false, analyze = analyzeJournal, onCase } 
   if (live) {
     report.gates = gates({ ...gateMetrics, remoteCompletionRate: fraction(rows.filter((r) => r.outcome === 'completed').length, rows.length) },
       { taskPrecision: 0.9, taskRecall: 0.9, summaryAnchorCoverage: 0.9, validity: 1, citationValidity: 1, remoteCompletionRate: 1 });
+    if (language === 'zh-CN') report.gates.push(...gates({ chineseOutputRate: fraction(rows.filter(row => row.chineseOutput).length, rows.length) }, { chineseOutputRate: 1 }));
   } else {
     const schedules = dataset.scheduler.map((item) => {
       try {
@@ -161,6 +164,14 @@ async function runEvaluation({ live = false, analyze = analyzeJournal, onCase } 
   }
   report.passed = report.gates.every((gate) => gate.passed);
   report.elapsedMs = Math.floor(performance.now() - started);
+  if (!live) {
+    report.analysis.byLanguage={};
+    for(const lang of [...new Set(rows.filter(row=>row.split==='gate').map(row=>row.language))]) {
+      const scores=aggregate(rows.filter(row=>row.split==='gate'&&row.language===lang));report.analysis.byLanguage[lang]=scores;
+      for(const metric of ['taskPrecision','taskRecall','summaryAnchorCoverage','validity','citationValidity','uncertaintySafety']) report.gates.push({metric:lang+':'+metric,value:scores[metric],minimum:dataset.gates[metric],passed:scores[metric]>=dataset.gates[metric]});
+    }
+    report.passed=report.gates.every(gate=>gate.passed);
+  }
   return report;
 }
 module.exports = { dataset, METRIC_VERSION, inputFor, scoreAnalysis, aggregate, schedulerBundle, scheduleSafe, gates, runEvaluation, contains, actionMatch };

@@ -1,3 +1,4 @@
+const { terms: searchTerms, indexedText } = require('./searchText.cjs');
 const { hash, error } = require('./common.cjs');
 const { sourceVersion } = require('../contracts/analysis.cjs');
 function migrate(db) {
@@ -24,16 +25,21 @@ function attach(db, transaction, getJournal) {
     db.prepare('DELETE FROM memory_chunks WHERE source_id=?').run(id);
   }
   function indexSource(source) {
-    clearChunks(source.id);
     const version = source.sourceType === 'journal' ? sourceVersion(source) : source.version;
+    const existing=db.prepare('SELECT data FROM memory_chunks WHERE source_id=?').all(source.id).map(parse);
+    if (existing.length === Math.ceil(source.content.length/900) && existing.every(item=>item.sourceVersion===version)) return;
+    clearChunks(source.id);
     // Bounded overlapping text chunks; no executable document/file ingestion.
     for (let start = 0; start < source.content.length; start += 900) {
-      const content = source.content.slice(start, start + 1200);
+      let from = start, to = Math.min(source.content.length, start + 1200);
+      if (from && /[\uDC00-\uDFFF]/u.test(source.content[from]) && /[\uD800-\uDBFF]/u.test(source.content[from - 1])) from--;
+      if (to < source.content.length && /[\uDC00-\uDFFF]/u.test(source.content[to]) && /[\uD800-\uDBFF]/u.test(source.content[to - 1])) to--;
+      const content = source.content.slice(from, to);
       const id = `chunk:${hash([source.id, version, start]).slice(0, 40)}`;
       const chunk = { id, sourceId: source.id, sourceType: source.sourceType || 'document', sourceVersion: version,
         title: source.title || 'Journal', content, updatedAt: source.updatedAt, embedding: null, model: null };
       db.prepare('INSERT INTO memory_chunks VALUES(?,?,?)').run(id, source.id, JSON.stringify(chunk));
-      db.prepare('INSERT INTO memory_fts VALUES(?,?,?)').run(id, chunk.title, content);
+      db.prepare('INSERT INTO memory_fts VALUES(?,?,?)').run(id, indexedText(chunk.title), indexedText(content));
     }
   }
   return {
@@ -107,12 +113,15 @@ function attach(db, transaction, getJournal) {
     reindexMemory(journals) { return transaction(() => {
       const sources = [...db.prepare('SELECT data FROM memory_documents').all().map(parse), ...journals.map((item) => ({ ...item, sourceType: 'journal' }))];
       if (sources.length > 200 || sources.reduce((sum, s) => sum + Math.ceil(s.content.length / 900), 0) > 1000) throw error('Index supports 200 sources / 1000 chunks; shorten notes or journals');
-      db.exec('DELETE FROM memory_chunks; DELETE FROM memory_fts'); sources.forEach(indexSource);
+      const retained=new Set(sources.map(source=>source.id));
+      for(const row of db.prepare('SELECT DISTINCT source_id FROM memory_chunks').all()) if(!retained.has(row.source_id)) clearChunks(row.source_id);
+      sources.forEach(indexSource);
       return { sources: sources.length, chunks: db.prepare('SELECT count(*) AS n FROM memory_chunks').get().n };
     }); },
     memoryChunks: () => db.prepare('SELECT data FROM memory_chunks LIMIT 1000').all().map(parse).filter(chunkCurrent),
     lexicalMemory(text) {
-      const terms = text.match(/[\p{L}\p{N}]+/gu)?.slice(0, 20) || [];
+      const allTerms = searchTerms(text);
+      const terms = allTerms.filter(term => !/^\p{Script=Han}$/u.test(term) || allTerms.every(t => [...t].length === 1)).slice(0, 80);
       if (!terms.length) return [];
       const match = terms.map((term) => `"${term}"`).join(' OR ');
       return db.prepare('SELECT c.data FROM memory_fts f JOIN memory_chunks c ON c.id=f.id WHERE memory_fts MATCH ? ORDER BY bm25(memory_fts),c.id LIMIT 100')

@@ -48,7 +48,7 @@ test('diagnostics remains authenticated, request IDs ignore caller input, and tr
   assert.equal(bad.status, 404); assert.notEqual(bad.headers.get('X-Request-ID'), 'PRIVATE');
   const response = await fetch(url + '/api/diagnostics', { headers: { Authorization: `Bearer ${token}` } });
   assert.equal(response.status, 200); const result = await response.json();
-  assert.equal(result.ready, true); assert.equal(result.database.schemaVersion, 2); assert.equal(result.promptVersion, '1.2.0');
+  assert.equal(result.ready, true); assert.equal(result.database.schemaVersion, 3); assert.equal(result.promptVersion, '1.3.0');
   assert.ok(!JSON.stringify(result).includes('private-id')); assert.ok(!JSON.stringify(result).includes('PRIVATE'));
   assert.ok(result.telemetry.recent.some((event) => event.route === '/api/journals/:id/analysis'));
   assert.equal(isAllowedRequest('/api/diagnostics', 'GET'), true); assert.equal(isAllowedRequest('/api/diagnostics', 'POST'), false);

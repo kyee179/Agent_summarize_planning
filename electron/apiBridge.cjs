@@ -7,6 +7,9 @@ function isAllowedRequest(route, method) {
   const base = /^\/api\/(time|settings|events|journals)$/.test(url.pathname);
   const item = /^\/api\/(events|journals)\/[^/]+$/.test(url.pathname);
   const action = /^\/api\/journals\/[^/]+\/(analysis|analyze|apply-drafts)$/.test(url.pathname);
+  if (url.pathname === '/api/tasks' && method === 'GET') return true;
+  if (/^\/api\/tasks\/task(?:%3A|:)[0-9a-f-]{36}$/i.test(url.pathname) && method === 'PUT') return true;
+  if (url.pathname === '/api/reminders/claim' && method === 'POST') return true;
   const integrationRoutes = {
     '/api/diagnostics': ['GET'], '/api/integrations/activity/desktop/start': ['POST'], '/api/integrations/activity/desktop/stop': ['POST'], '/api/integrations/google/quick-sync': ['POST'], '/api/integrations/status': ['GET'], '/api/integrations/activity/buckets': ['GET'], '/api/integrations/activity/import': ['POST'],
     '/api/integrations/activity': ['DELETE'], '/api/integrations/google/connect': ['POST'], '/api/integrations/google/cancel': ['POST'],

@@ -31,6 +31,7 @@
     "schemas:export": "node scripts/export-schemas.cjs",
     "eval": "node scripts/evaluate.cjs",
     "eval:live": "node scripts/evaluate.cjs --live",
+    "eval:chinese:live": "node scripts/evaluate.cjs --live-zh",
     "smoke:retrieval:live": "node scripts/smoke-retrieval-live.cjs",
     "quality:check": "node scripts/quality-check.cjs",
     "restore:db": "node scripts/restore.cjs",

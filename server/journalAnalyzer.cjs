@@ -1,3 +1,4 @@
+const language = require('./language.cjs');
 const { performance } = require("node:perf_hooks");
 const { safeObserve } = require("./observability.cjs");
 const { assertSchema, assertBundle, ContractError } = require("./contracts/validate.cjs");
@@ -7,59 +8,29 @@ const { loadSkills, buildMessages } = require("./agent/skills.cjs");
 const { LIMITS, runWorkflow, workflowMetadata } = require("./agent/runtime.cjs");
 const { createProvider } = require("./agent/providers.cjs");
 
-const taskSignals = [
-  "need to",
-  "should",
-  "have to",
-  "must",
-  "not finished",
-  "unfinished",
-  "remaining",
-  "later",
-  "maybe it's time",
-  "maybe it is time",
-  "deadline",
-  "assessment",
-  "dissertation",
-  "experiment",
-  "project",
-  "cv",
-  "job",
-  "supervisor",
-  "meeting",
-  "test"
-];
 
 const priorityWeights = [
-  { pattern: /deadline|assessment|interview|urgent|must|have to/i, priority: "high", urgency: "high", minutes: 90 },
+  { pattern: /deadline|assessment|interview|urgent|must|have to|截止|面试|紧急|必须/i, priority: "high", urgency: "high", minutes: 90 },
   { pattern: /dissertation|experiment|supervisor|graduation/i, priority: "high", urgency: "medium", minutes: 120 },
   { pattern: /job|cv|application|company/i, priority: "medium", urgency: "medium", minutes: 75 },
-  { pattern: /project|coding|vibe coding|portfolio/i, priority: "medium", urgency: "low", minutes: 90 },
+  { pattern: /project|coding|vibe coding|portfolio|项目|编程|报告/i, priority: "medium", urgency: "low", minutes: 90 },
   { pattern: /relationship|health|rest|family/i, priority: "medium", urgency: "medium", minutes: 45 }
 ];
 
 function splitSentences(text) {
-  return String(text || "")
-    .split(/[\n.!?。！？]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return language.sentenceSpans(text).map(span => String(text).slice(span.start,span.end));
 }
 
 function inferTask(sentence) {
-  if (/\b(should not|must not|do not|don't|no longer need to|not going to|cancelled|canceled)\b/i.test(sentence)) return null;
-  // Completed statements alone should not become follow-up work.
-  if (/\b(finished|completed|submitted|done)\b/i.test(sentence) && !/\b(need to|should|must|have to|unfinished|not finished)\b/i.test(sentence)) return null;
-  const hasSignal = taskSignals.some((signal) => sentence.toLowerCase().includes(signal));
-  if (!hasSignal) return null;
-
-  const matched = priorityWeights.find((weight) => weight.pattern.test(sentence)) || {
+  if (!language.isAction(sentence)) return null;
+  const matched = priorityWeights.find((weight) => weight.pattern.test(language.normalize(sentence))) || {
     priority: "low",
     urgency: "low",
     minutes: 45
   };
 
   return {
-    title: sentence.length > 86 ? `${sentence.slice(0, 83)}...` : sentence,
+    title: [...sentence].length > 86 ? `${[...sentence].slice(0, 83).join('')}...` : sentence,
     priority: matched.priority,
     urgency: matched.urgency,
     estimatedMinutes: matched.minutes,
@@ -71,21 +42,25 @@ function inferTask(sentence) {
 function localRuleBasedAnalysis(input = {}) {
   const { journal, settings = {}, availability = settings.defaultAvailability || [{ startsAt: "20:00", endsAt: "24:00" }] } = input;
   const evidence = input.trustedEvidence || collectJournalEvidence(input);
+  const chinese = language.outputLanguage(journal?.content, input.outputLanguage) === 'zh-CN';
   const selectedId = journal?.id || "input-journal-0";
   const selectedEvidence = evidence.filter((item) => item.sourceId === selectedId);
-  const detected = evidence.filter((item) => item.sourceType === "journal").map((item) => ({ evidence: item, task: inferTask(item.excerpt) })).filter((item) => item.task).slice(0, 8);
-  const tasks = detected.map(({ evidence: item, task }, i) => ({
-    id: `task:${i + 1}`, title: task.title, description: item.excerpt, status: "open", evidenceIds: [item.id],
-    importance: { level: task.priority, basis: "inferred", reason: task.reason, evidenceIds: [item.id] },
+  const detected = evidence.filter((item) => item.sourceType === "journal").map((item) => language.actionClauses(item.excerpt).map(clause => ({ evidence: item, clause, task: inferTask(clause) }))).flat().filter((item) => item.task);
+  const unique = new Map();
+  for (const item of detected) { const key=language.actionKey(item.clause); if (!unique.has(key)) unique.set(key,item); }
+  const selectedTasks=[...unique.values()].slice(0,8);
+  const tasks = selectedTasks.map(({ evidence: item, task, clause }, i) => ({
+    id: `task:${i + 1}`, title: task.title, description: clause, status: "open", evidenceIds: [item.id],
+    importance: { level: task.priority, basis: "inferred", reason: chinese ? '根据明确的待办或未完成语句推断；请核对重要性。' : task.reason, evidenceIds: [item.id] },
     deadline: null, estimateId: `estimate:${i + 1}`, dependsOn: [],
-    clarificationQuestions: ["Confirm the remaining work and effort estimate.", "Is there an explicit deadline or dependency?"]
+    clarificationQuestions: chinese ? ['请确认剩余工作和预计用时。', '是否有明确的截止时间或前置任务？'] : ["Confirm the remaining work and effort estimate.", "Is there an explicit deadline or dependency?"]
   }));
-  const estimates = detected.map(({ task }, i) => ({
+  const estimates = selectedTasks.map(({ task }, i) => ({
     id: `estimate:${i + 1}`, taskId: tasks[i].id, scope: "next_session", basis: "local_heuristic",
     effortMinutes: { low: Math.max(1, Math.floor(task.estimatedMinutes / 2)), expected: task.estimatedMinutes, high: task.estimatedMinutes * 2 },
     confidence: "low", evidenceIds: [],
-    assumptions: ["Keyword estimate for one work session; not a measured duration or a researched fact."],
-    rationale: "Provisional effort from the local keyword baseline; confirm scope before applying."
+    assumptions: [chinese ? '这是单次工作时段的粗略估计，并非实测时长或已核实事实。' : 'Keyword estimate for one work session; not a measured duration or a researched fact.'],
+    rationale: chinese ? '本地规则的暂定用时；应用前请确认工作范围。' : 'Provisional effort from the local keyword baseline; confirm scope before applying.'
   }));
   const plan = {
     id: "plan:1", state: "proposal", timezone: settings.timezone || "UTC",
@@ -99,17 +74,17 @@ function localRuleBasedAnalysis(input = {}) {
     events: input.existingEvents || [], notBefore: input.notBefore ?? null
   });
   const summary = selectedEvidence.length
-    ? `Reported in the selected journal: ${selectedEvidence.slice(0, 3).map((item) => item.excerpt).join(". ").slice(0, 9000)}.`
-    : "No usable text was found in the selected journal.";
+    ? `${chinese ? '所选日记记载：' : 'Reported in the selected journal: '}${selectedEvidence.slice(0, 3).map((item) => item.excerpt).join(". ").slice(0, 9000)}.`
+    : chinese ? '所选日记没有可分析的文本。' : 'No usable text was found in the selected journal.';
 
   return contractAnalysis({
     provider: "local",
     model: "rule-based-v1",
     summary,
-    weeklySummary: summarizeWeekly(evidence.filter((item) => item.sourceType === "journal").map((item) => item.excerpt), tasks),
+    weeklySummary: chinese ? `仅包含所提供日记的部分上下文，不能代表完整一周。识别出 ${tasks.length} 项可能的后续工作。` : summarizeWeekly(evidence.filter((item) => item.sourceType === "journal").map((item) => item.excerpt), tasks),
     cautions: [
-      "Local fallback uses tentative keyword estimates; deadlines remain unknown and importance is inferred.",
-      "Review proposed sessions and assumptions before applying; allocations do not imply task completion."
+      chinese ? '本地规则仅提供粗略估计；未确认的截止时间保持未知，重要性属于推断。' : 'Local fallback uses tentative keyword estimates; deadlines remain unknown and importance is inferred.',
+      chinese ? '应用前请检查建议时段和假设；安排时段不代表任务已完成。' : 'Review proposed sessions and assumptions before applying; allocations do not imply task completion.'
     ]
   }, contract, { trustedEvidence: evidence });
 }
@@ -158,12 +133,16 @@ function normalizeRemoteAnalysis(result, provider, model, fallbackContext) {
 async function analyzeJournal(input = {}) {
   const started = performance.now();
   function finish(result) {
+    result.evidenceCoverage = require('./contracts/journalEvidence.cjs').coverage(input, result.contract.evidence);
+    if (result.evidenceCoverage.partial) result.cautions = [...result.cautions.slice(0, 18), input.outputLanguage === 'zh-CN' ? '仅完成部分分析：有日记文本超出证据预算。请查看覆盖范围，并拆分较长条目。' : 'Partial analysis: some journal text exceeds the evidence budget. Review coverage and analyze smaller entries.'];
+    result.outputLanguage = input.outputLanguage;
     assertAnalysis(result);
     const meta = result.agentWorkflow;
     safeObserve(input.observe, { kind: 'analysis', outcome: meta.outcome, reason: meta.stopReason, durationMs: performance.now() - started,
       promptHash: meta.promptHash, promptVersion: meta.promptVersion, toolCalls: meta.toolCalls, toolErrors: meta.toolErrors });
     return result;
   }
+  input = { ...input, outputLanguage: language.outputLanguage(input.journal?.content, input.outputLanguage) };
   const settings = input.settings || {};
   const config = getProviderConfig(settings);
   const availability = input.availability !== undefined ? input.availability : settings.defaultAvailability || [{ startsAt: "20:00", endsAt: "24:00" }];
@@ -172,7 +151,8 @@ async function analyzeJournal(input = {}) {
   assertBundle({ schemaVersion: 1, evidence: [], tasks: [], estimates: [],
     plan: { id: "input", state: "proposal", ...expectedPlan, blocks: [], unscheduled: [], warnings: [] } });
   const supplementary = input.supplementalEvidence || [];
-  const trustedEvidence = [...collectJournalEvidence(input).slice(0, 100 - supplementary.length), ...supplementary];
+  // Reserve one confirmation record per permitted candidate task inside the unchanged 100-item contract.
+  const trustedEvidence = [...collectJournalEvidence({ ...input, evidenceLimit: 92 - supplementary.length }), ...supplementary];
   const context = { ...input, availability, trustedEvidence, expectedPlan };
   const skills = loadSkills();
   const providers = {
@@ -194,7 +174,7 @@ async function analyzeJournal(input = {}) {
   const reason = run?.metadata.stopReason || (config.provider === "local" ? "local_provider" : provider ? "missing_credentials" : "unsupported_provider");
   if (config.provider !== "local") {
     fallback.provider = "local-fallback";
-    fallback.cautions = [reason === "validation" || reason === "error_limit"
+    fallback.cautions = [input.outputLanguage === 'zh-CN' ? 'AI 工作流未能完成，已改用本地规则分析。请检查任务与证据。' : reason === "validation" || reason === "error_limit"
       ? "AI output failed contract validation; using the local fallback."
       : "AI workflow stopped (" + reason + "); using the local fallback.", ...fallback.cautions];
   }

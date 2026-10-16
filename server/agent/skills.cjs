@@ -28,6 +28,9 @@ function buildMessages(skills, context, limits) {
     messages: [{ role: "system", content: system }, { role: "user", content: JSON.stringify({
       request: "Summarize the selected journal and propose realistic follow-up work using the tools.",
       selectedJournal: { id: context.journal.id || "input-journal-0", type: context.journal.type, journalDate: context.journal.journalDate },
+      outputLanguage: context.outputLanguage || require('../language.cjs').outputLanguage(context.journal.content),
+      sourceDatePolicy: 'Resolve relative dates from each source journal date and the planning timezone, never the target planning day. Unconfirmed deadlines remain null.',
+      sourceJournalDates: [context.journal, ...(context.relatedJournals || [])].map((journal, i) => ({ sourceId: journal.id || `input-journal-${i}`, journalDate: journal.journalDate })),
       evidenceCount: context.trustedEvidence.length, relatedJournalCount: context.relatedJournals?.length || 0,
       permissions: { personalMemory: Boolean(context.memorySearch), webResearch: Boolean(context.webResearch) }
     }) }]

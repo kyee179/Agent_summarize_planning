@@ -31,14 +31,14 @@ const streams = {
   browser: [{ timestamp: selectedRange.from, duration: 1800, data: { url: 'https://example.com/private/path?token=SECRET#secret', title: 'SECRET PAGE' } }],
   afk: [{ timestamp: selectedRange.from, duration: 1200, data: { status: 'not-afk' } }]
 };
-test('SQLite v1 migrates atomically to v2, preserves records, and rejects future versions', (t) => {
+test('SQLite v1 migrates atomically to v3, preserves records, and rejects future versions', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'integration-migration-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 'test.sqlite'); let store = createStore(file);
   store.createJournal({ id: 'kept', content: 'Synthetic note' }); store.close();
   let db = new DatabaseSync(file);
   db.exec('DROP TABLE memory_fts; DROP TABLE memory_chunks; DROP TABLE memory_documents; DROP TABLE integration_state; DROP TABLE activity; DROP TABLE google_busy; PRAGMA user_version=1;'); db.close();
   store = createStore(file); assert.equal(store.getJournal('kept').content, 'Synthetic note'); assert.deepEqual(store.memoryChunks(), []); store.close();
-  db = new DatabaseSync(file); assert.equal(db.prepare('PRAGMA user_version').get().user_version, 2); db.exec('PRAGMA user_version=3'); db.close();
+  db = new DatabaseSync(file); assert.equal(db.prepare('PRAGMA user_version').get().user_version, 3); db.exec('PRAGMA user_version=4'); db.close();
   assert.throws(() => createStore(file), /newer app/);
 });
 test('a failed v1 migration rolls back its version and every newly created table', (t) => {

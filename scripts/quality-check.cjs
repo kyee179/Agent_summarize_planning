@@ -8,7 +8,7 @@ const { dataset, METRIC_VERSION } = require('../evaluation/runner.cjs');
 const root = path.join(__dirname, '..');
 const policy = JSON.parse(fs.readFileSync(path.join(root, 'evaluation', 'release-policy.json'), 'utf8'));
 const fail = (message) => { throw new Error(message); };
-const privatePath = (file) => /(^|\/)(?:server\/data|telemetry|evaluation\/reports|google_setup)(\/|$)|\.(?:sqlite|db)(?:[.-]|$)|(^|\/)(?:secret\.txt|client_secret[^/]*\.json|credentials\.json)$|(^|\/)\.env(?:\.|$)/i.test(file) && !file.endsWith('.env.example');
+const privatePath = (file) => /(^|\/)(?:server\/data|telemetry|evaluation\/reports|google_setup)(\/|$)|\.(?:sqlite|db)(?:[.-]|$)|(^|\/)(?:secret\.txt|client_secret[^/]*\.json|credentials\.json|credentials\.encrypted(?:\.[^/]*)?)$|(^|\/)\.env(?:\.|$)/i.test(file) && !file.endsWith('.env.example');
 function check() {
   const [major, minor] = process.versions.node.split('.').map(Number);
   if (major < 24 || major === 24 && minor < 18) fail('Node >=24.18 is required.');
@@ -22,6 +22,8 @@ function check() {
   if (policy.policyHash !== policyHash) fail('Pinned prompt content changed; review and update the release policy.');
   if (dataset.schemaVersion !== 1 || dataset.datasetVersion !== policy.datasetVersion || dataset.analysis.filter((r) => r.split === 'gate').length < 12 || dataset.analysis.filter((r) => r.split === 'challenge').length < 8 || dataset.scheduler.length < 10 || dataset.memory.queries.length < 6) fail('Required evaluation coverage missing.');
   if (policy.datasetHash !== crypto.createHash('sha256').update(JSON.stringify(dataset)).digest('hex')) fail('Dataset or thresholds changed; review and update the release policy.');
+  const chineseCases = dataset.analysis.filter(item => item.split === 'gate' && item.language === 'zh-CN');
+  if (chineseCases.length < 36 || chineseCases.some(item => !item.summaryAnchors.length)) fail('Required Chinese action and summary coverage missing.');
   for (const items of [dataset.analysis, dataset.scheduler, dataset.memory.queries]) if (new Set(items.map((item) => item.id)).size !== items.length) fail('Evaluation IDs must be unique.');
   const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   if (files.some(privatePath)) fail('Private data or credentials path is tracked.');

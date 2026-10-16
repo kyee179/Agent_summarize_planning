@@ -40,7 +40,7 @@ test("skills are pinned, layered, and hashed without placing source text in inst
   const skills = loadSkills(), ctx = context();
   assert.deepEqual(skills.skills.map((item) => [item.name, item.version]), [["daily-summary", "1.1.0"], ["task-planning", "1.1.0"]]);
   const first = buildMessages(skills, ctx, LIMITS);
-  assert.match(first.messages[0].content, /Workflow policy v1.2.0/);
+  assert.match(first.messages[0].content, /Workflow policy v1.3.0/);
   assert.match(first.messages[0].content, /# Role and goal/);
   assert.ok(!JSON.stringify(first.messages).includes(input.journal.content));
   assert.equal(first.promptHash, buildMessages(skills, { ...ctx, journal: { ...ctx.journal, content: "Different" } }, LIMITS).promptHash);

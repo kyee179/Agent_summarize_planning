@@ -25,4 +25,8 @@ describe("calendar request transport", () => {
     window.studyCalendar = { request: vi.fn().mockResolvedValue({ status: 409, body: { error: "Analysis is stale" } }) };
     await expect(api.applyDrafts("j", "a")).rejects.toThrow("Analysis is stale");
   });
+  it('retains conflict status and structured validation issues for recovery', async () => {
+    window.studyCalendar = { request: vi.fn().mockResolvedValue({ status: 422, body: { error: 'Invalid plan', issues: [{ path: '/plan', message: 'Choose hours' }], requestId: 'synthetic' } }) };
+    await expect(api.analyzeJournal('j')).rejects.toMatchObject({ status: 422, issues: [{ path: '/plan', message: 'Choose hours' }], requestId: 'synthetic' });
+  });
 });

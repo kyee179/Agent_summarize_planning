@@ -1,4 +1,4 @@
-export function PlanningTasks({ analysis }) {
+export function PlanningTasks({ analysis, selectedTaskId = null, onEdit }) {
   const contract = analysis.contract;
   if (!contract) {
     return <section><h3>Tasks</h3><p className="caution">Saved legacy analysis. Analyze again to see evidence and estimate uncertainty.</p>
@@ -8,12 +8,13 @@ export function PlanningTasks({ analysis }) {
   const estimates = new Map(contract.estimates.map((item) => [item.id, item]));
   const evidence = new Map(contract.evidence.map((item) => [item.id, item]));
   return <>
-    <section><h3>Tasks</h3>{contract.tasks.length ? contract.tasks.map((task) => {
+    <section><h3>Tasks</h3>{contract.tasks.length ? contract.tasks.filter(task => !selectedTaskId || task.id === selectedTaskId).map((task) => {
       const estimate = estimates.get(task.estimateId), range = estimate?.effortMinutes;
       const sourceIds = [...new Set([...task.evidenceIds, ...task.importance.evidenceIds,
         ...(task.deadline?.evidenceIds || []), ...(estimate?.evidenceIds || [])])];
       return <div className="task-pill" key={task.id}>
         <strong>{task.title}</strong>
+        {onEdit && analysis.persistentTasks?.some(item => item.id === task.id) && <button type="button" className="text-button" onClick={() => onEdit(task)}>Confirm or edit facts</button>}
         <small>{task.importance.level} importance ({task.importance.basis}) · {task.status.replaceAll("_", " ")}</small>
         <small>{range ? `${range.expected} min expected (${range.low}–${range.high} min range)` : "Effort unknown"}</small>
         {estimate && <small>{estimate.confidence} confidence · {estimate.basis.replaceAll("_", " ")} · {estimate.scope.replaceAll("_", " ")}</small>}
