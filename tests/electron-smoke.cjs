@@ -98,7 +98,8 @@ app.on("browser-window-created", (_event, window) => {
         navigate('Connections');
         await until(() => !document.querySelector('[aria-label="Sources and connections"]').parentElement.hidden, 'Connections page did not open');
         const connections = document.querySelector('[aria-label="Sources and connections"]');
-        if (!connections || !connections.textContent.includes('Start recording') || !connections.textContent.includes('Google Calendar')) throw new Error('Simple connection controls missing');
+        const recorderLabel = integrationStatus.body.desktopActivity.available ? 'Start recording' : 'Learn more';
+        if (!connections || !connections.textContent.includes(recorderLabel) || !connections.textContent.includes('Google Calendar')) throw new Error('Platform-appropriate connection controls missing');
         const activity = (await call('/api/integrations/status')).body.desktopActivity;
         if (activity.running) throw new Error('UI started activity recording without consent');
         navigate('Settings');
