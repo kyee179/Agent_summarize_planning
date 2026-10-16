@@ -171,6 +171,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
     if ([req.query.from, req.query.to].some((value) => value !== undefined && !isIsoDate(value))) return res.status(400).json({ error: "Invalid date range" });
     const local = store.listEvents({ from: req.query.from, to: req.query.to });
     const imported = req.query.includeGoogle === 'true' ? store.googleBusy({ from: req.query.from || '0001-01-01T00:00:00Z', to: req.query.to || '9999-12-31T23:59:59Z' }) : [];
+    if (req.query.expand === 'true') return res.json(require('./calendarView.cjs').listCalendarOccurrences(store, { from: req.query.from, to: req.query.to, timezone: store.getSettings().timezone, includeGoogle: req.query.includeGoogle === 'true' }));
     res.json([...local, ...imported].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt)));
   });
 

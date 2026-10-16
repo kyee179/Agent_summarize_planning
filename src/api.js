@@ -1,3 +1,13 @@
+export class ApiError extends Error {
+  constructor(status, body) {
+    super((body?.errors?.join(", ") || body?.issues?.map(item => item.message).join('; ') || body?.error || `Request failed with ${status}`) + (body?.requestId ? ` (request ${body.requestId})` : ''));
+    this.name = 'ApiError';
+    this.status = status;
+    this.issues = body?.issues || [];
+    this.requestId = body?.requestId;
+  }
+}
+
 async function request(path, options = {}) {
   let status, body;
   if (window.studyCalendar?.request) {
@@ -9,7 +19,7 @@ async function request(path, options = {}) {
     status = response.status;
     body = status === 204 ? null : await response.json().catch(() => ({}));
   }
-  if (status >= 400) throw new Error((body?.errors?.join(", ") || body?.error || `Request failed with ${status}`) + (body?.requestId ? ` (request ${body.requestId})` : ''));
+  if (status >= 400) throw new ApiError(status, body);
   return body;
 }
 
@@ -43,9 +53,10 @@ export const api = {
   getTime: () => request("/api/time"),
   getSettings: () => request("/api/settings"),
   updateSettings: (settings) => request("/api/settings", { method: "PUT", body: JSON.stringify(settings) }),
-  listEvents: ({ from, to } = {}) => {
+  listEvents: ({ from, to, expand = false } = {}) => {
     const params = new URLSearchParams();
     params.set('includeGoogle', 'true');
+    if (expand) params.set('expand', 'true');
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     return request(`/api/events?${params.toString()}`);

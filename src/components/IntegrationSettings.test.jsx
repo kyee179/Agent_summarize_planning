@@ -3,23 +3,44 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { IntegrationSettings } from './IntegrationSettings.jsx';
 import { ResearchSources } from './ResearchSources.jsx';
 import { api } from '../api.js';
-vi.mock('../api.js', () => ({ api: { integrationStatus: vi.fn(), memoryNotes: vi.fn(), connectGoogle: vi.fn(), openGoogleConsent: vi.fn(), quickGoogleSync: vi.fn(), startDesktopActivity: vi.fn(), research: vi.fn() } }));
+vi.mock('../api.js', () => ({ api: { integrationStatus: vi.fn(), memoryNotes: vi.fn(), connectGoogle: vi.fn(), openGoogleConsent: vi.fn(), quickGoogleSync: vi.fn(), syncGoogle: vi.fn(), startDesktopActivity: vi.fn(), stopDesktopActivity: vi.fn(), research: vi.fn() } }));
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 describe('integration setup and consent', () => {
+  it('pauses an existing recording without starting capture or deleting its observations', async () => {
+    let running = true;
+    api.memoryNotes.mockResolvedValue([]);
+    api.integrationStatus.mockImplementation(async () => ({ google: {}, memory: {}, research: {}, desktopActivity: { available: true, running } }));
+    api.stopDesktopActivity.mockImplementation(async () => { running = false; });
+    render(<IntegrationSettings />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Pause recording' }));
+    await screen.findByText(/Recording paused/);
+    expect(api.stopDesktopActivity).toHaveBeenCalledOnce();
+    expect(api.startDesktopActivity).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Start recording' })).toBeInTheDocument();
+  });
+  it('refreshes the selected Google calendars instead of replacing them with the primary calendar', async () => {
+    api.memoryNotes.mockResolvedValue([]);
+    api.integrationStatus.mockResolvedValue({ google: { configured: true, connected: true, sync: { calendarIds: ['selected-work'] } }, memory: {}, research: {} });
+    api.syncGoogle.mockResolvedValue({ imported: 0 });
+    render(<IntegrationSettings settings={{ timezone: 'UTC' }} targetDate="2030-01-08" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh calendar' }));
+    await waitFor(() => expect(api.syncGoogle).toHaveBeenCalledWith({ consent: true, calendarIds: ['selected-work'], from: '2030-01-07T23:45:00.000Z', to: '2030-01-16T00:15:00.000Z' }));
+    expect(api.quickGoogleSync).not.toHaveBeenCalled();
+  });
   it('renders missing-credential setup without asking for secrets and keeps actions behind consent', async () => {
     api.integrationStatus.mockResolvedValue({ google: { configured: false, connected: false }, memory: { model: 'nomic-embed-text' }, research: { configured: false } });
     api.memoryNotes.mockResolvedValue([]); render(<IntegrationSettings />);
-    await screen.findByText(/Credentials needed/);
-    expect(screen.getByRole('button', { name: 'Connect Google Calendar' })).toBeDisabled();
+    await screen.findByRole('button', { name: 'Setup help for Google Calendar' });
+    expect(screen.queryByRole('button', { name: 'Connect Google Calendar' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Import activity' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Rebuild memory index' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Make past entries searchable' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Research with citations' })).toBeDisabled();
     expect(api.connectGoogle).not.toHaveBeenCalled(); expect(api.research).not.toHaveBeenCalled();
   });
   it('sends exactly the explicitly authorized manual research query and shows low confidence citations', async () => {
     api.integrationStatus.mockResolvedValue({ google: {}, memory: {}, research: { configured: true } }); api.memoryNotes.mockResolvedValue([]);
     api.research.mockResolvedValue({ results: [{ id: 'web:x', title: 'Source', url: 'https://example.com/docs', excerpt: 'Snippet', confidence: 'low', confidenceReason: 'Not page verified', retrievedAt: '2026-10-12T00:00:00Z' }] });
-    render(<IntegrationSettings />); await screen.findByText(/Search configured/);
+    render(<IntegrationSettings />); await screen.findByText(/Ready when you need it/);
     fireEvent.change(screen.getByLabelText('Research query'), { target: { value: 'task scope' } });
     expect(screen.getByRole('button', { name: 'Research with citations' })).toBeDisabled();
     fireEvent.click(screen.getByLabelText('Send this query to Tavily'));
@@ -54,7 +75,7 @@ describe('integration setup and consent', () => {
     api.openGoogleConsent.mockResolvedValue({ opened: true }); api.quickGoogleSync.mockResolvedValue({ imported: 0 });
     render(<IntegrationSettings />); await waitFor(() => expect(screen.getByRole('button', { name: 'Connect Google Calendar' })).not.toBeDisabled());
     fireEvent.click(screen.getByRole('button', { name: 'Connect Google Calendar' }));
-    await screen.findByText(/Complete Google sign-in/); expect(screen.getByText(/OAuth configured · Connecting/)).toBeInTheDocument();
+    await screen.findByText(/Complete Google sign-in/); expect(screen.getByText('Connecting in your browser')).toBeInTheDocument();
     state = 'exchanging'; await waitFor(() => expect(api.integrationStatus.mock.calls.length).toBeGreaterThanOrEqual(3), { timeout: 3000 });
     expect(screen.queryByText(/Google authorization ended/)).not.toBeInTheDocument(); expect(api.quickGoogleSync).not.toHaveBeenCalled();
     state = 'connected'; await waitFor(() => expect(api.quickGoogleSync).toHaveBeenCalledOnce(), { timeout: 3000 });
@@ -63,8 +84,8 @@ describe('integration setup and consent', () => {
   it('starts desktop activity only after the user presses the enable button', async () => {
     api.memoryNotes.mockResolvedValue([]); api.integrationStatus.mockResolvedValue({ google: {}, memory: {}, research: {}, desktopActivity: { available: true, running: false } });
     api.startDesktopActivity.mockResolvedValue({ enabled: true }); render(<IntegrationSettings />);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Enable desktop activity' })).not.toBeDisabled());
-    expect(api.startDesktopActivity).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('button', { name: 'Enable desktop activity' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Start recording' })).not.toBeDisabled());
+    expect(api.startDesktopActivity).not.toHaveBeenCalled(); fireEvent.click(screen.getByRole('button', { name: 'Start recording' }));
     await screen.findByText(/Desktop activity enabled for this app session/); expect(api.startDesktopActivity).toHaveBeenCalledOnce();
   });
 });

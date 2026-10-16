@@ -16,10 +16,10 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 840,
-    minWidth: 980,
-    minHeight: 680,
+    minWidth: 640,
+    minHeight: 600,
     title: "Agent Planning Calendar",
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#f5f5f7",
     show: process.env.CALENDAR_SMOKE_TEST !== "1",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),

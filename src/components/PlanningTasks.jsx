@@ -1,4 +1,4 @@
-export function PlanningTasks({ analysis }) {
+export function PlanningTasks({ analysis, selectedTaskId = null }) {
   const contract = analysis.contract;
   if (!contract) {
     return <section><h3>Tasks</h3><p className="caution">Saved legacy analysis. Analyze again to see evidence and estimate uncertainty.</p>
@@ -8,7 +8,7 @@ export function PlanningTasks({ analysis }) {
   const estimates = new Map(contract.estimates.map((item) => [item.id, item]));
   const evidence = new Map(contract.evidence.map((item) => [item.id, item]));
   return <>
-    <section><h3>Tasks</h3>{contract.tasks.length ? contract.tasks.map((task) => {
+    <section><h3>Tasks</h3>{contract.tasks.length ? contract.tasks.filter(task => !selectedTaskId || task.id === selectedTaskId).map((task) => {
       const estimate = estimates.get(task.estimateId), range = estimate?.effortMinutes;
       const sourceIds = [...new Set([...task.evidenceIds, ...task.importance.evidenceIds,
         ...(task.deadline?.evidenceIds || []), ...(estimate?.evidenceIds || [])])];
