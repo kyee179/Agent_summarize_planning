@@ -24,6 +24,9 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  listTasks: (journalId) => request('/api/tasks' + (journalId ? '?journalId=' + encodeURIComponent(journalId) : '')),
+  updateTask: (id, body) => request('/api/tasks/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) }),
+  claimReminder: (id, at) => request('/api/reminders/claim', { method: 'POST', body: JSON.stringify({ id, at }) }),
   startDesktopActivity: () => request('/api/integrations/activity/desktop/start', { method: 'POST', body: JSON.stringify({ consent: true }) }),
   stopDesktopActivity: () => request('/api/integrations/activity/desktop/stop', { method: 'POST', body: '{}' }),
   quickGoogleSync: () => request('/api/integrations/google/quick-sync', { method: 'POST', body: JSON.stringify({ consent: true }) }),

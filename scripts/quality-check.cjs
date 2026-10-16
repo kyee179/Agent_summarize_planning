@@ -8,7 +8,7 @@ const { dataset, METRIC_VERSION } = require('../evaluation/runner.cjs');
 const root = path.join(__dirname, '..');
 const policy = JSON.parse(fs.readFileSync(path.join(root, 'evaluation', 'release-policy.json'), 'utf8'));
 const fail = (message) => { throw new Error(message); };
-const privatePath = (file) => /(^|\/)(?:server\/data|telemetry|evaluation\/reports|google_setup)(\/|$)|\.(?:sqlite|db)(?:[.-]|$)|(^|\/)(?:secret\.txt|client_secret[^/]*\.json|credentials\.json)$|(^|\/)\.env(?:\.|$)/i.test(file) && !file.endsWith('.env.example');
+const privatePath = (file) => /(^|\/)(?:server\/data|telemetry|evaluation\/reports|google_setup)(\/|$)|\.(?:sqlite|db)(?:[.-]|$)|(^|\/)(?:secret\.txt|client_secret[^/]*\.json|credentials\.json|credentials\.encrypted(?:\.[^/]*)?)$|(^|\/)\.env(?:\.|$)/i.test(file) && !file.endsWith('.env.example');
 function check() {
   const [major, minor] = process.versions.node.split('.').map(Number);
   if (major < 24 || major === 24 && minor < 18) fail('Node >=24.18 is required.');

@@ -11,6 +11,12 @@ app.on("browser-window-created", (_event, window) => {
       const result = await window.webContents.executeJavaScript(`(async () => {
         if (typeof window.studyCalendar?.request !== 'function') throw new Error('Missing preload bridge');
         if ('apiToken' in window.studyCalendar || typeof window.require !== 'undefined') throw new Error('Renderer isolation failed');
+        const setup = await window.studyCalendar.setupStatus();
+        if (setup.secureStorage) {
+          await window.studyCalendar.saveSetup({ AI_PROVIDER: 'local', GLM_API_KEY: 'synthetic-desktop-credential' });
+          const saved = await window.studyCalendar.setupStatus();
+          if (!saved.configured.GLM_API_KEY || JSON.stringify(saved).includes('synthetic-desktop-credential')) throw new Error('Secure setup status leaked or lost a key');
+        }
         const call = window.studyCalendar.request;
         const response = await call('/api/journals', { method: 'POST', body: JSON.stringify({
           type: 'daily', journalDate: '2026-10-02', title: 'Smoke', content: 'I need to study the project tomorrow.'
@@ -38,6 +44,10 @@ app.on("browser-window-created", (_event, window) => {
         const first = await call(route, { method: 'POST', body });
         const retry = await call(route, { method: 'POST', body });
         if (first.status !== 201 || retry.status !== 200 || !retry.body.replayed) throw new Error('Batch replay failed');
+        const tracked = await call('/api/tasks?journalId=' + journal.id);
+        if (tracked.status !== 200 || !tracked.body[0]?.sessionEventIds.length) throw new Error('Task session linkage failed');
+        const repeatPlan = await call('/api/journals/' + journal.id + '/analyze', { method: 'POST', body: JSON.stringify({ targetDate: '2030-01-01' }) });
+        if (repeatPlan.status !== 201 || repeatPlan.body.scheduleDrafts.length) throw new Error('Previously applied work was planned again');
         const events = await call('/api/events');
         if (events.body.filter(event => event.sourceAnalysisId === analysis.body.id).length !== first.body.events.length) throw new Error('Duplicate events');
         let rejected = false;
@@ -99,6 +109,8 @@ app.on("browser-window-created", (_event, window) => {
         return { events: first.body.events.length, pageRendered: document.querySelector('main') !== null };
       })()`);
       if (!result.pageRendered) throw new Error("React did not render");
+      const credentialFile = path.join(process.env.CALENDAR_SMOKE_DIRECTORY, 'credentials.encrypted');
+      if (fs.existsSync(credentialFile) && fs.readFileSync(credentialFile).includes('synthetic-desktop-credential')) throw new Error('Credentials were stored as plaintext');
       if (process.env.CALENDAR_UI_CAPTURE_DIRECTORY) {
         window.webContents.setBackgroundThrottling(false);
         await window.webContents.executeJavaScript(`(() => { const style = document.createElement('style'); style.textContent = '*,*::before,*::after{transition:none!important;animation:none!important}'; document.head.append(style); })()`);
@@ -124,6 +136,15 @@ app.on("browser-window-created", (_event, window) => {
         await window.webContents.executeJavaScript(`document.querySelector('.journal-analysis-prompt button').click()`);
         await new Promise(resolve => setTimeout(resolve, 150));
         fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, 'analysis-options.png'), (await window.webContents.capturePage()).toPNG());
+        await window.webContents.executeJavaScript(`Array.from(document.querySelector('dialog').querySelectorAll('button')).find(button => button.textContent === 'Done').click()`);
+        await capture('Plan', 'plan');
+        await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Confirm or edit facts').click()`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, 'task-facts.png'), (await window.webContents.capturePage()).toPNG());
+        await window.webContents.executeJavaScript(`document.querySelector('[aria-label="Close Confirm task facts"]').click()`);
+        await capture('Settings', 'settings');
+        await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('h2')).find(element => element.textContent === 'Set up your services').closest('section').scrollIntoView()`);
+        fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, 'service-setup.png'), (await window.webContents.capturePage()).toPNG());
       }
       console.log("Desktop smoke passed: scheduling, stale-calendar rejection, SQLite, IPC, batch replay, isolation, local memory, integration setup, tracing and monitoring UI.");
       app.quit();

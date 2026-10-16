@@ -7,28 +7,6 @@ const { loadSkills, buildMessages } = require("./agent/skills.cjs");
 const { LIMITS, runWorkflow, workflowMetadata } = require("./agent/runtime.cjs");
 const { createProvider } = require("./agent/providers.cjs");
 
-const taskSignals = [
-  "need to",
-  "should",
-  "have to",
-  "must",
-  "not finished",
-  "unfinished",
-  "remaining",
-  "later",
-  "maybe it's time",
-  "maybe it is time",
-  "deadline",
-  "assessment",
-  "dissertation",
-  "experiment",
-  "project",
-  "cv",
-  "job",
-  "supervisor",
-  "meeting",
-  "test"
-];
 
 const priorityWeights = [
   { pattern: /deadline|assessment|interview|urgent|must|have to/i, priority: "high", urgency: "high", minutes: 90 },
@@ -46,11 +24,10 @@ function splitSentences(text) {
 }
 
 function inferTask(sentence) {
-  if (/\b(should not|must not|do not|don't|no longer need to|not going to|cancelled|canceled)\b/i.test(sentence)) return null;
-  // Completed statements alone should not become follow-up work.
-  if (/\b(finished|completed|submitted|done)\b/i.test(sentence) && !/\b(need to|should|must|have to|unfinished|not finished)\b/i.test(sentence)) return null;
-  const hasSignal = taskSignals.some((signal) => sentence.toLowerCase().includes(signal));
-  if (!hasSignal) return null;
+  if (/(?:不需要|不用|不必|无需|不要|取消|已取消|已经完成|已完成|做完|完成了)/u.test(sentence)) return null;
+  if (/\b(should not|must not|do not|don't|no longer need to|not going to|cancelled|canceled|already completed|already finished)\b/i.test(sentence)) return null;
+  const intent = /\b(need to|should|have to|must|not finished|unfinished|remaining|i will|we will|plan to|intend to|maybe (?:it'?s|it is) time)\b|(?:需要|必须|待完成|尚未|还没|计划|打算|准备|记得|接下来|明天要|我要)/iu;
+  if (!intent.test(sentence)) return null;
 
   const matched = priorityWeights.find((weight) => weight.pattern.test(sentence)) || {
     priority: "low",
@@ -158,6 +135,8 @@ function normalizeRemoteAnalysis(result, provider, model, fallbackContext) {
 async function analyzeJournal(input = {}) {
   const started = performance.now();
   function finish(result) {
+    result.evidenceCoverage = require('./contracts/journalEvidence.cjs').coverage(input, result.contract.evidence);
+    if (result.evidenceCoverage.partial) result.cautions = [...result.cautions.slice(0, 18), 'Partial analysis: some journal text exceeds the evidence budget. Review coverage and analyze smaller entries.'];
     assertAnalysis(result);
     const meta = result.agentWorkflow;
     safeObserve(input.observe, { kind: 'analysis', outcome: meta.outcome, reason: meta.stopReason, durationMs: performance.now() - started,
@@ -172,7 +151,8 @@ async function analyzeJournal(input = {}) {
   assertBundle({ schemaVersion: 1, evidence: [], tasks: [], estimates: [],
     plan: { id: "input", state: "proposal", ...expectedPlan, blocks: [], unscheduled: [], warnings: [] } });
   const supplementary = input.supplementalEvidence || [];
-  const trustedEvidence = [...collectJournalEvidence(input).slice(0, 100 - supplementary.length), ...supplementary];
+  // Reserve one confirmation record per permitted candidate task inside the unchanged 100-item contract.
+  const trustedEvidence = [...collectJournalEvidence({ ...input, evidenceLimit: 92 - supplementary.length }), ...supplementary];
   const context = { ...input, availability, trustedEvidence, expectedPlan };
   const skills = loadSkills();
   const providers = {

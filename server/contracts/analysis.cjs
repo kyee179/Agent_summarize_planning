@@ -7,23 +7,17 @@ function sourceVersion(journal) {
     journal.type, journal.journalDate, journal.title || "", journal.content
   ])).digest("hex");
 }
-function collectJournalEvidence({ journal, relatedJournals = [] }) {
-  const observedAt = new Date().toISOString();
-  const seen = new Set();
-  const evidence = [];
+function collectJournalEvidence({ journal, relatedJournals = [], evidenceLimit = 100 }) {
+  const observedAt = new Date().toISOString(), seen = new Set(), evidence = [];
   [journal, ...relatedJournals].filter(Boolean).forEach((source, sourceIndex) => {
     const sourceId = source.id || `input-journal-${sourceIndex}`;
     if (seen.has(sourceId)) return;
     seen.add(sourceId);
-    const version = sourceVersion(source);
-    const sentences = String(source.content || "").split(/[\n.!?。！？]+/).map((text) => text.trim()).filter(Boolean);
-    sentences.forEach((excerpt, index) => {
-      if (evidence.length >= 100 || excerpt.length > 4000) return;
-      evidence.push({
-        id: `e:${sourceIndex}:${index}`, sourceType: "journal", sourceId, sourceVersion: version,
+    require('./journalEvidence.cjs').chunks(source.content).forEach(({ excerpt }, index) => {
+      if (evidence.length >= evidenceLimit) return;
+      evidence.push({ id: `e:${sourceIndex}:${index}`, sourceType: 'journal', sourceId, sourceVersion: sourceVersion(source),
         locator: null, excerpt, observedAt, sourceTimestamp: isInstant(source.updatedAt) ? source.updatedAt : null,
-        verification: "source_matched", facts: []
-      });
+        verification: 'source_matched', facts: [] });
     });
   });
   return evidence;

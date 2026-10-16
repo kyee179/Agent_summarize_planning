@@ -1,3 +1,4 @@
+const { terms: searchTerms, indexedText } = require('./searchText.cjs');
 const { hash, error } = require('./common.cjs');
 const { sourceVersion } = require('../contracts/analysis.cjs');
 function migrate(db) {
@@ -33,7 +34,7 @@ function attach(db, transaction, getJournal) {
       const chunk = { id, sourceId: source.id, sourceType: source.sourceType || 'document', sourceVersion: version,
         title: source.title || 'Journal', content, updatedAt: source.updatedAt, embedding: null, model: null };
       db.prepare('INSERT INTO memory_chunks VALUES(?,?,?)').run(id, source.id, JSON.stringify(chunk));
-      db.prepare('INSERT INTO memory_fts VALUES(?,?,?)').run(id, chunk.title, content);
+      db.prepare('INSERT INTO memory_fts VALUES(?,?,?)').run(id, indexedText(chunk.title), indexedText(content));
     }
   }
   return {
@@ -112,7 +113,8 @@ function attach(db, transaction, getJournal) {
     }); },
     memoryChunks: () => db.prepare('SELECT data FROM memory_chunks LIMIT 1000').all().map(parse).filter(chunkCurrent),
     lexicalMemory(text) {
-      const terms = text.match(/[\p{L}\p{N}]+/gu)?.slice(0, 20) || [];
+      const allTerms = searchTerms(text);
+      const terms = allTerms.filter(term => !/^\p{Script=Han}$/u.test(term) || allTerms.every(t => [...t].length === 1)).slice(0, 80);
       if (!terms.length) return [];
       const match = terms.map((term) => `"${term}"`).join(' OR ');
       return db.prepare('SELECT c.data FROM memory_fts f JOIN memory_chunks c ON c.id=f.id WHERE memory_fts MATCH ? ORDER BY bm25(memory_fts),c.id LIMIT 100')

@@ -6,6 +6,7 @@ const defaultData = {
     defaultNotifyMinutesBefore: 15,
     aiProvider: "glm",
     dailyAiRequestLimit: 10,
+    planningLeadMinutes: 5,
     defaultAvailability: [
       { label: "Evening focus", startsAt: "20:00", endsAt: "24:00" }
     ]

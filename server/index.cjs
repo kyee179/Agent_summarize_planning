@@ -154,8 +154,9 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
   });
 
   app.put("/api/settings", (req, res) => {
-    const allowed = ["timezone", "locale", "weekStartsOn", "defaultNotifyMinutesBefore", "aiProvider", "dailyAiRequestLimit", "defaultAvailability"];
+    const allowed = ["timezone", "locale", "weekStartsOn", "defaultNotifyMinutesBefore", "aiProvider", "dailyAiRequestLimit", "planningLeadMinutes", "defaultAvailability"];
     const patch = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
+    if (patch.planningLeadMinutes !== undefined && (!Number.isInteger(patch.planningLeadMinutes) || patch.planningLeadMinutes < 1 || patch.planningLeadMinutes > 120)) return res.status(400).json({ error: 'Review time must be 1–120 minutes' });
     if (patch.timezone !== undefined || patch.defaultAvailability !== undefined) {
       const settings = { ...store.getSettings(), ...patch };
       assertBundle({ schemaVersion: 1, evidence: [], tasks: [], estimates: [], plan: {
@@ -239,6 +240,13 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
     res.json({ ...analysis, contractStatus: analysis.contract ? "versioned" : "legacy", applied: Boolean(store.getAppliedBatch(analysis.id)) });
   });
 
+  app.get('/api/tasks', (req, res) => res.json(store.listTasks(req.query.journalId)));
+  app.put('/api/tasks/:id', (req, res) => res.json(store.updateTask(req.params.id, req.body)));
+  app.post('/api/reminders/claim', (req, res) => {
+    if (typeof req.body.id !== 'string' || req.body.id.length > 500 || !isInstant(req.body.at)) return res.status(400).json({ error: 'Invalid reminder receipt' });
+    res.json({ claimed: store.claimReminder(req.body.id, clock()) });
+  });
+
   app.post("/api/journals/:id/apply-drafts", (req, res) => {
     if (typeof req.body.analysisId !== "string" || !req.body.analysisId) return res.status(400).json({ error: "analysisId is required" });
     if (!store.getJournal(req.params.id)) return res.status(404).json({ error: "Journal not found" });
@@ -303,9 +311,9 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
       journal,
       relatedJournals,
       settings,
-      availability, targetDate, existingEvents, notBefore: asOf
+      availability, targetDate, existingEvents, notBefore: new Date(Date.parse(asOf) + (settings.planningLeadMinutes || 5) * 60000).toISOString()
     });
-    const result = scheduleAnalysis(interpreted, { events: existingEvents, settings, notBefore: asOf,
+    const result = scheduleAnalysis(interpreted, { events: existingEvents, settings, notBefore: new Date(Date.parse(clock()) + (settings.planningLeadMinutes || 5) * 60000).toISOString(),
       availabilitySource: req.body.availability !== undefined ? "request" : "settings" });
     const analysis = {
       ...result,
@@ -355,6 +363,7 @@ function startServer(options = {}) {
   });
   server.on("close", () => { app.locals.closeIntegrations(); store.close(); });
   server.on("error", (error) => { app.locals.closeIntegrations(); store.close(); console.error(`Local API startup failed: ${error.code}`); });
+  server.calendarStore = store;
   return server;
 }
 

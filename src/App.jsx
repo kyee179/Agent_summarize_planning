@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, CircleHelp, House, Link2, Plus, Settings2, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { api } from './api.js';
 import { useWorkspace } from './app/useWorkspace.js';
 import { CalendarWorkspace, EmptyState, EventList } from './features/CalendarWorkspace.jsx';
 import { JournalWorkspace } from './features/JournalWorkspace.jsx';
@@ -36,14 +37,14 @@ export default function App() {
     return () => clearInterval(timer);
   }, [w.loading, w.reloadEvents]);
   useEffect(() => {
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (window.studyCalendar?.nativeReminders || !('Notification' in window) || Notification.permission !== 'granted') return;
     w.nearbyEvents.forEach(item => {
       if (item.readonly || item.notificationFormat !== 'Desktop notification') return;
       const at = Date.parse(item.startsAt) - Number(item.notifyMinutesBefore || 0) * 60000;
       const key = `${occurrenceKey(item)}:${at}`;
-      if (at <= w.now.getTime() && w.now.getTime() - at < 60000 && !notified.current.has(key)) {
+      if (at <= w.now.getTime() && w.now.getTime() - at < 86400000 && !notified.current.has(key)) {
         notified.current.add(key);
-        new Notification(item.title, { body: `${timeLabel(item.startsAt, w.settings.timezone)}–${timeLabel(item.endsAt, w.settings.timezone)} (${w.settings.timezone})`, tag: key });
+        api.claimReminder(key, w.now.toISOString()).then(({ claimed }) => { if (claimed) new Notification(item.title, { body: `${timeLabel(item.startsAt, w.settings.timezone)}–${timeLabel(item.endsAt, w.settings.timezone)} (${w.settings.timezone})`, tag: key }); }).catch(() => notified.current.delete(key));
       }
     });
   }, [w.now, w.nearbyEvents]);
@@ -80,6 +81,7 @@ export default function App() {
     </aside>
     <main className="workspace" id="workspace"><header className="page-header"><div><p className="page-context">Your workspace <ChevronRight size={12} /> {current.label}</p><h1>{current.label}</h1><p>{current.description}</p></div><div className="header-actions">{['today', 'calendar'].includes(w.page) && <button className="primary-button" type="button" onClick={() => newEvent(w.page === 'today' ? w.today : w.selectedDate)}><Plus size={17} />Add event</button>}{w.page === 'journal' && <button className="secondary-button" type="button" disabled={w.busy} onClick={() => guard(w.newJournal)}><Plus size={17} />New entry</button>}</div></header>
       {w.notice && <div className={`workspace-notice ${w.notice.tone}`} role={w.notice.tone === 'error' ? 'alert' : 'status'}><span>{w.notice.tone === 'error' ? <CircleHelp size={17} /> : <Check size={17} />}{w.notice.message}</span><button className="icon-button" type="button" aria-label="Dismiss message" onClick={() => w.setNotice(null)}><X size={16} /></button></div>}
+      {w.settings.aiProviderConfigured && !w.settings.aiProviderConfigured[w.settings.effectiveAiProvider || w.settings.aiProvider] && <div className="inline-status"><strong>Choose how to prepare your plans.</strong><span>Use local rules without a key, or connect an AI service through Settings.</span><button className="secondary-button" type="button" onClick={() => w.setPage('settings')}>Open service setup</button></div>}
       {w.loading ? <div className="workspace-loading" role="status"><span className="loading-ring" />Loading your workspace…</div> : w.loadingError ? <EmptyState title="Your workspace couldn’t load" action={<button className="primary-button" type="button" onClick={w.load}>Try again</button>}>{w.loadingError}</EmptyState> : <>
         {w.page === 'today' && <><section className="today-heading"><div><p className="subtle-label">{dateLabel(w.today, { weekday: 'long', month: undefined, day: undefined })}</p><h2>{dateLabel(w.today)}</h2><p>{todayEvents.length ? `${todayEvents.length} calendar ${todayEvents.length === 1 ? 'commitment' : 'commitments'} today. Your time, in one place.` : 'There is room to shape your day.'}</p></div><span className="today-date-mark">{calendarDate(w.today).getDate()}</span></section>
           <div className="today-layout"><section className="today-agenda"><div className="section-heading"><h2>On your calendar</h2><button className="text-button" type="button" onClick={() => { w.setActiveMonth(calendarDate(w.today)); w.setSelectedDate(w.today); w.setPage('calendar'); }}>Full calendar<ArrowRight size={14} /></button></div>{todayEvents.length ? <EventList events={todayEvents} timezone={w.settings.timezone} onEdit={item => setEvent({ record: item })} /> : <EmptyState title="Your day has some breathing room" action={<button className="secondary-button" type="button" onClick={() => newEvent(w.today)}>Add an event</button>}>Add a commitment, or start with a reflection.</EmptyState>}<p className="helper">Times in {w.settings.timezone}. Google busy time is read only.</p></section>
@@ -89,7 +91,7 @@ export default function App() {
         {w.page === 'journal' && <JournalWorkspace workspace={w} onSelect={selectJournal} onNew={() => guard(w.newJournal)} onPrepare={prepare} onCustomize={() => setOptionsOpen(true)} onDelete={() => setConfirmation({ title: 'Delete this journal?', message: 'This removes the journal and its saved analysis. Applied calendar events are kept.', confirmLabel: 'Delete journal', action: w.removeJournal })} />}
         {w.page === 'plan' && <PlanWorkspace workspace={w} onCustomize={() => setOptionsOpen(true)} onJournal={() => w.setPage('journal')} onEvent={item => setEvent({ record: item })} onSelectJournal={entry => guard(() => w.selectJournal(entry))} />}
         <div hidden={w.page !== 'connections'}><IntegrationSettings settings={w.settings} targetDate={w.options.targetDate} onCalendarChanged={changedCalendar} onStatusChanged={w.setConnections} onCustomize={() => setOptionsOpen(true)} /></div>
-        <div hidden={w.page !== 'settings'}><SettingsWorkspace settings={w.settings} onSave={w.updateSettings} /></div>
+        <div hidden={w.page !== 'settings'}><SettingsWorkspace settings={w.settings} onSave={w.updateSettings} busy={w.busy} /></div>
       </>}
       <footer className="workspace-footer"><span>Reflect. Make room. Move forward.</span><button className="text-button" type="button" onClick={() => setOptionsOpen(true)} disabled={w.loading || w.busy}><SlidersHorizontal size={14} />Customize analysis</button></footer>
     </main>

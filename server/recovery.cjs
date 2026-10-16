@@ -3,7 +3,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { DatabaseSync, backup } = require('node:sqlite');
 
-const MAX_SCHEMA = 2;
+const MAX_SCHEMA = 3;
 function inspectDatabase(file, maxVersion = MAX_SCHEMA) {
   const db = new DatabaseSync(file, { readOnly: true });
   try {
@@ -11,7 +11,7 @@ function inspectDatabase(file, maxVersion = MAX_SCHEMA) {
     if (!Number.isInteger(maxVersion) || maxVersion < 1 || maxVersion > MAX_SCHEMA || version < 1 || version > maxVersion) throw new Error('Database schema is incompatible with the selected application.');
     if (db.prepare('PRAGMA quick_check').all().some((item) => item.quick_check !== 'ok') || db.prepare('PRAGMA foreign_key_check').all().length) throw new Error('Database integrity check failed.');
     const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((item) => item.name));
-    const required = ['settings', 'events', 'journals', 'analyses', 'applied_batches', 'metadata', ...(version === 2 ? ['integration_state', 'activity', 'google_busy', 'memory_documents', 'memory_chunks', 'memory_fts'] : [])];
+    const required = ['settings', 'events', 'journals', 'analyses', 'applied_batches', 'metadata', ...(version >= 2 ? ['integration_state', 'activity', 'google_busy', 'memory_documents', 'memory_chunks', 'memory_fts', ...(version >= 3 ? ['durable_tasks', 'task_analyses', 'task_sessions', 'reminder_receipts'] : [])] : [])];
     if (required.some((table) => !tables.has(table)) || !db.prepare('SELECT data FROM settings WHERE id=1').get()) throw new Error('Database is missing required application tables or settings.');
     return { version, integrity: 'ok' };
   } finally { db.close(); }

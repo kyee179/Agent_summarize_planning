@@ -27,8 +27,10 @@ export function useWorkspace() {
   const [notice, setNotice] = useState(null), [journalState, setJournalState] = useState('New entry');
   const [options, setOptions] = useState({ targetDate: dateKey(new Date()), customAvailability: false, startsAt: '09:00', endsAt: '17:00', includeActivity: false, allowMemory: false, allowWebResearch: false });
   const [now, setNow] = useState(new Date());
+  const [operationActive, setOperationActive] = useState(false);
+  const contextRevision = useRef(0);
   const eventSequence = useRef(0), journalSequence = useRef(0), running = useRef(false);
-  const busy = ['saving', 'generating', 'applying', 'loading'].includes(phase);
+  const busy = operationActive || ['saving', 'generating', 'applying', 'loading'].includes(phase);
   const dirty = signature(journal) !== savedSignature;
   const today = dateKey(now, settings.timezone);
   const days = useMemo(() => buildMonthDays(activeMonth, settings.weekStartsOn), [activeMonth, settings.weekStartsOn]);
@@ -40,7 +42,7 @@ export function useWorkspace() {
     const sequence = ++eventSequence.current;
     setEventLoading(true);
     try {
-      const nextRange = { from: dayRange(today, settings.timezone).from, to: dayRange(shiftDate(today, 8), settings.timezone).from };
+      const nextRange = { from: dayRange(shiftDate(today, -1), settings.timezone).from, to: dayRange(shiftDate(today, 8), settings.timezone).from };
       const [monthData, nextData] = await Promise.all([api.listEvents({ ...range, expand: true }), api.listEvents({ ...nextRange, expand: true })]);
       if (sequence === eventSequence.current) { setEvents(monthData); setNearbyEvents(nextData); }
     } catch (error) { if (sequence === eventSequence.current) notify(`Calendar could not load. ${error.message}`, 'error'); }
@@ -62,7 +64,12 @@ export function useWorkspace() {
   }, [notify]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!loading) reloadEvents(); }, [loading, reloadEvents]);
-  useEffect(() => { const timer = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(timer); }, []);
+  useEffect(() => {
+    const refresh = () => { setNow(new Date()); reloadEvents(); };
+    const timer = setInterval(() => setNow(new Date()), 30000);
+    window.addEventListener('focus', refresh); document.addEventListener('visibilitychange', refresh);
+    return () => { clearInterval(timer); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };
+  }, [reloadEvents]);
   useEffect(() => {
     if (!dirty) return;
     const warn = event => { event.preventDefault(); event.returnValue = ''; };
@@ -70,18 +77,23 @@ export function useWorkspace() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
-  function invalidate() { setPhase(current => analysis && current !== 'applied' ? 'stale' : current); }
+  function invalidate() { ++contextRevision.current; setPhase(current => analysis && current !== 'applied' ? 'stale' : current); }
   function newJournal() {
+    if (running.current) return;
     ++journalSequence.current;
     const entry = emptyJournal(settings.timezone);
     setJournal(entry); setSavedSignature(signature(entry)); setAnalysis(null); setPhase('idle'); setJournalState('New entry'); setPage('journal');
   }
   async function selectJournal(entry) {
+    if (running.current) return;
     const sequence = ++journalSequence.current;
     setJournal(entry); setSavedSignature(signature(entry)); setAnalysis(null); setJournalState('Saved'); setPhase('loading');
     try {
       const result = await api.getJournalAnalysis(entry.id);
-      if (sequence === journalSequence.current) { setAnalysis(result); setPhase(result ? result.applied ? 'applied' : 'ready' : 'idle'); }
+      if (sequence === journalSequence.current) {
+        if (result && result.journalId !== entry.id) throw new Error('Saved analysis belongs to another journal. Generate a new plan.');
+        setAnalysis(result); setPhase(result ? result.applied ? 'applied' : 'ready' : 'idle');
+      }
     } catch (error) {
       if (sequence === journalSequence.current) { setPhase('idle'); if (error.status !== 404) notify(`Could not load the saved analysis. ${error.message}`, 'error'); }
     }
@@ -89,9 +101,11 @@ export function useWorkspace() {
   async function saveJournal() {
     if (journal.id && !dirty) return journal;
     if (!journal.title.trim() || !journal.content.trim()) { setJournalState('Add a title and some journal text before saving.'); return null; }
+    const sequence = journalSequence.current;
     setJournalState('Saving…');
     try {
       const result = journal.id ? await api.updateJournal(journal.id, journalPayload(journal)) : await api.createJournal(journalPayload(journal));
+      if (sequence !== journalSequence.current) return null;
       setJournal(result); setSavedSignature(signature(result)); setAnalysis(null); setJournalState('Saved');
       setJournals(current => [result, ...current.filter(x => x.id !== result.id)].sort((a, b) => b.journalDate.localeCompare(a.journalDate)));
       setPhase('idle');
@@ -101,14 +115,15 @@ export function useWorkspace() {
   async function save() {
     if (running.current) return;
     if (journal.id && !dirty) return journal;
-    running.current = true; setPhase('saving');
-    try { return await saveJournal(); } finally { running.current = false; setPhase(current => current === 'saving' ? 'idle' : current); }
+    running.current = true; setOperationActive(true); setPhase('saving');
+    try { return await saveJournal(); } finally { running.current = false; setOperationActive(false); setPhase(current => current === 'saving' ? 'idle' : current); }
   }
   async function generate() {
     if (running.current) return;
     if (!options.targetDate) return notify('Choose a planning date in Customize analysis.', 'error');
     if (options.customAvailability && (!options.startsAt || !options.endsAt || options.startsAt >= options.endsAt)) return notify('Available hours must end after they start.', 'error');
-    running.current = true; setPhase('saving'); setNotice(null);
+    const sequence = journalSequence.current, revision = contextRevision.current;
+    running.current = true; setOperationActive(true); setPhase('saving'); setNotice(null);
     try {
       const saved = await saveJournal();
       if (!saved) { setPhase('idle'); return; }
@@ -116,13 +131,16 @@ export function useWorkspace() {
       const request = { targetDate: options.targetDate, includeActivity: options.includeActivity, allowMemory: options.allowMemory, allowWebResearch: options.allowWebResearch };
       if (options.customAvailability) request.availability = [{ label: 'This plan', startsAt: options.startsAt, endsAt: options.endsAt }];
       const result = await api.analyzeJournal(saved.id, request);
+      if (sequence !== journalSequence.current || revision !== contextRevision.current || result.journalId !== saved.id) {
+        setPhase('stale'); notify('Context changed during generation. Generate a new plan before applying.', 'error'); return;
+      }
       setAnalysis(result); setPhase('ready'); notify('Your plan is ready to review.');
     } catch (error) { setPhase(analysis ? 'stale' : 'error'); notify(error.message, 'error'); }
-    finally { running.current = false; }
+    finally { running.current = false; setOperationActive(false); }
   }
   async function apply() {
-    if (running.current || dirty || !analysis?.scheduleDrafts?.length || phase !== 'ready') return;
-    running.current = true; setPhase('applying');
+    if (running.current || dirty || analysis?.journalId !== journal.id || !analysis?.scheduleDrafts?.length || phase !== 'ready') return;
+    running.current = true; setOperationActive(true); setPhase('applying');
     try {
       await api.applyDrafts(analysis.journalId, analysis.id);
       setAnalysis(current => ({ ...current, applied: true })); setPhase('applied');
@@ -130,20 +148,21 @@ export function useWorkspace() {
       setSelectedDate(target); setActiveMonth(calendarDate(target));
       await reloadEvents(); notify('All proposed blocks were added to your local calendar.');
     } catch (error) { setPhase(error.status === 409 ? 'stale' : 'ready'); notify(error.message, 'error'); }
-    finally { running.current = false; }
+    finally { running.current = false; setOperationActive(false); }
   }
   async function removeJournal() {
     if (!journal.id || running.current) return;
     running.current = true;
-    try { await api.deleteJournal(journal.id); setJournals(current => current.filter(x => x.id !== journal.id)); newJournal(); notify('Journal deleted.'); }
+    try { await api.deleteJournal(journal.id); setJournals(current => current.filter(x => x.id !== journal.id)); running.current = false; newJournal(); notify('Journal deleted.'); }
     catch (error) { notify(error.message, 'error'); }
     finally { running.current = false; }
   }
   async function updateSettings(patch) {
     const result = await api.updateSettings(patch); setSettings(result); invalidate(); notify('Settings saved.');
   }
-  function changeJournal(patch) { setJournal(current => ({ ...current, ...patch })); setJournalState('Unsaved changes'); }
+  function changeJournal(patch) { if (running.current) return; ++contextRevision.current; setJournal(current => ({ ...current, ...patch })); setJournalState('Unsaved changes'); }
+  function changeOptions(next) { if (running.current) return; setOptions(next); invalidate(); }
   return { page, setPage, settings, events, nearbyEvents, journals, connections, setConnections, journal, analysis, phase, busy, dirty,
-    loading, loadingError, eventLoading, notice, setNotice, notify, journalState, options, setOptions, today, now, days, range, activeMonth, setActiveMonth,
+    loading, loadingError, eventLoading, notice, setNotice, notify, journalState, options, setOptions: changeOptions, today, now, days, range, activeMonth, setActiveMonth,
     selectedDate, setSelectedDate, reloadEvents, load, invalidate, newJournal, selectJournal, save, generate, apply, removeJournal, updateSettings, changeJournal };
 }

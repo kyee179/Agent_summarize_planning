@@ -174,11 +174,11 @@ test("store rejects a corrupt projection or stale source before replacing an ana
   try {
     store.createJournal(journal);
     const analysis = { ...sample(), id: "a", journalId: journal.id };
-    store.saveJournalAnalysis(analysis);
+    const saved = store.saveJournalAnalysis(analysis);
     const corrupt = structuredClone(analysis);
     corrupt.tasks[0].estimatedMinutes = 1;
     assert.throws(() => store.saveJournalAnalysis(corrupt), ContractError);
-    assert.deepEqual(store.getJournalAnalysis(journal.id), analysis);
+    assert.deepEqual(store.getJournalAnalysis(journal.id), saved);
     store.updateJournal(journal.id, { content: "Changed source" });
     assert.throws(() => store.saveJournalAnalysis(analysis), /Source evidence changed/);
     assert.equal(store.getJournalAnalysis(journal.id), null);

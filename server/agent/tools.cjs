@@ -74,7 +74,7 @@ function createToolSession(context, provider, model) {
           const added = [];
           for (const item of result.evidence || []) {
             assertSchema("evidence", item);
-            if (evidence.length >= 100) break;
+            if (evidence.length >= 92) break;
             if (evidence.some((e) => e.id === item.id)) continue;
             evidence.push(structuredClone(item)); seen.add(item.id); added.push(item);
           }
@@ -86,7 +86,11 @@ function createToolSession(context, provider, model) {
         }).catch(() => problem("/tool", "Search unavailable; continue with existing evidence"));
       }
       if (name === "read_evidence") {
-        const items = evidence.slice(args.offset, args.offset + args.limit);
+        const items = [];
+        for (const item of evidence.slice(args.offset, args.offset + args.limit)) {
+          if (Buffer.byteLength(JSON.stringify([...items, item])) > 60000) break;
+          items.push(item);
+        }
         items.forEach((item) => seen.add(item.id)); read = true;
         const nextOffset = args.offset + items.length < evidence.length ? args.offset + items.length : null;
         return { output: { evidence: items, total: evidence.length, nextOffset } };

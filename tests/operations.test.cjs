@@ -18,9 +18,9 @@ test('backup and restore commands work from another cwd and refuse destination r
   const source = path.join(dir, 'source.sqlite'), saved = path.join(dir, 'saved.sqlite'), restored = path.join(dir, 'recovered.sqlite');
   const store = createStore(source); store.createJournal({ id: 'kept', content: 'Synthetic CLI snapshot' }); store.close();
   const output = await cli('backup', [saved], { CALENDAR_DB_PATH: source }); assert.match(output.stdout, /verified/);
-  await cli('restore', [saved, restored, '2'], {});
+  await cli('restore', [saved, restored, '3'], {});
   const copy = createStore(restored); assert.ok(copy.getJournal('kept')); copy.close();
-  await assert.rejects(cli('restore', [saved, restored, '2'], {}), (error) => error.code === 1 && !error.stdout.includes('verified'));
+  await assert.rejects(cli('restore', [saved, restored, '3'], {}), (error) => error.code === 1 && !error.stdout.includes('verified'));
 });
 test('monitor CLI distinguishes healthy, alerted and unauthenticated local API without printing traces', async (t) => {
   const store = createStore(':memory:'), telemetry = createTelemetry(), token = crypto.randomBytes(32).toString('hex');
