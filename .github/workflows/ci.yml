@@ -73,3 +73,22 @@ jobs:
           path: evaluation/reports/offline.json
           retention-days: 14
           if-no-files-found: warn
+
+      - name: Windows installer and packaged acceptance
+        if: runner.os == 'Windows'
+        run: |
+          pnpm build:desktop --publish never
+          pnpm validate:package "release/win-unpacked/Agent Planning Calendar.exe" evaluation/reports/packaged-windows.json
+          pnpm release:checksums
+
+      - name: Windows test download
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-validation-installer
+          path: |
+            release/*Setup*.exe
+            release/SHA256SUMS.txt
+            evaluation/reports/packaged-windows.json
+          retention-days: 30
+          if-no-files-found: error

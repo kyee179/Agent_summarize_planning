@@ -9,6 +9,7 @@ const { startServer } = require("../server/index.cjs");
 const { isAllowedRequest, trustedSender } = require("./apiBridge.cjs");
 const { loadEnvironment } = require("../server/environment.cjs");
 const { DEV_ORIGIN } = require("../server/security.cjs");
+require('./profileDirectory.cjs').configureProfileDirectory(app, process.env.CALENDAR_PROFILE_DIRECTORY);
 
 let mainWindow;
 let apiServer;

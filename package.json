@@ -36,7 +36,9 @@
     "quality:check": "node scripts/quality-check.cjs",
     "restore:db": "node scripts/restore.cjs",
     "monitor": "node scripts/monitor.cjs",
-    "smoke:auth": "node scripts/smoke-desktop.cjs --auth"
+    "smoke:auth": "node scripts/smoke-desktop.cjs --auth",
+    "validate:package": "node scripts/validate-package.cjs",
+    "release:checksums": "node scripts/release-checksums.cjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

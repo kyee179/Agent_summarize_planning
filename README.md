@@ -1,5 +1,7 @@
 # Agent Summarization and Planning Calendar
 
+Download and first-run instructions: [Download and install](docs/DOWNLOAD_AND_INSTALL.md). A Windows x64 test installer has been validated locally; no GitHub Release is published yet. See [additional release validation](docs/RELEASE_VALIDATION.md) for packaged/installed checks and the remaining public-release gates.
+
 Hosted email/password accounts, local workspace isolation, offline access and first-run setup are explained in [docs/LOGIN_ONBOARDING.md](docs/LOGIN_ONBOARDING.md). The Supabase integration can be configured after installation; journals remain on this device.
 
 Release hardening for journal request safety, planning lead time, evidence coverage, Chinese search, persistent tasks, confirmed facts, durable reminders and secure desktop setup is explained in [docs/RELEASE_HARDENING.md](docs/RELEASE_HARDENING.md).
