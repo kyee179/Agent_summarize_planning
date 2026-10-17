@@ -8,7 +8,7 @@ const { dataset, METRIC_VERSION } = require('../evaluation/runner.cjs');
 const root = path.join(__dirname, '..');
 const policy = JSON.parse(fs.readFileSync(path.join(root, 'evaluation', 'release-policy.json'), 'utf8'));
 const fail = (message) => { throw new Error(message); };
-const privatePath = (file) => /(^|\/)(?:server\/data|telemetry|evaluation\/reports|google_setup)(\/|$)|\.(?:sqlite|db)(?:[.-]|$)|(^|\/)(?:secret\.txt|client_secret[^/]*\.json|credentials\.json|credentials\.encrypted(?:\.[^/]*)?)$|(^|\/)\.env(?:\.|$)/i.test(file) && !file.endsWith('.env.example');
+const privatePath = (file) => /(^|\/)(?:server\/data|telemetry|evaluation\/reports|google_setup|profiles|exports)(\/|$)|\.(?:sqlite|db)(?:[.-]|$)|(^|\/)(?:secret\.txt|client_secret[^/]*\.json|credentials\.json|(?:profile-credentials|credentials|session)\.encrypted(?:\.[^/]*)?|hosted-auth\.json(?:\.[^/]*)?)$|(^|\/)\.env(?:\.|$)/i.test(file) && !file.endsWith('.env.example');
 function check() {
   const [major, minor] = process.versions.node.split('.').map(Number);
   if (major < 24 || major === 24 && minor < 18) fail('Node >=24.18 is required.');
@@ -31,7 +31,7 @@ function check() {
     const absolute = path.join(root, file);
     if (!fs.existsSync(absolute) || !fs.statSync(absolute).isFile()) continue;
     const value = fs.readFileSync(absolute, 'utf8');
-    if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\b(?:gh[pousr]_[a-zA-Z0-9]{30,}|github_pat_[a-zA-Z0-9_]{50,}|tvly-[a-zA-Z0-9_-]{20,}|GOCSPX-[a-zA-Z0-9_-]{20,}|AIza[a-zA-Z0-9_-]{30,}|sk-[a-zA-Z0-9_-]{32,}|[a-f0-9]{32}\.[a-zA-Z0-9]{16})\b/.test(value)) fail(`Possible credential in tracked file: ${file}`);
+    if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\b(?:gh[pousr]_[a-zA-Z0-9]{30,}|github_pat_[a-zA-Z0-9_]{50,}|sb_secret_[a-zA-Z0-9_-]{16,}|tvly-[a-zA-Z0-9_-]{20,}|GOCSPX-[a-zA-Z0-9_-]{20,}|AIza[a-zA-Z0-9_-]{30,}|sk-[a-zA-Z0-9_-]{32,}|[a-f0-9]{32}\.[a-zA-Z0-9]{16})\b/.test(value)) fail(`Possible credential in tracked file: ${file}`);
   }
   console.log('Quality policy passed: version compatibility, prompt/skill pins, evaluation coverage and tracked-data/credential checks.');
 }

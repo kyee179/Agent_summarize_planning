@@ -13,7 +13,7 @@ function conflict(message) {
   return Object.assign(new Error(message), { status: 409 });
 }
 
-function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), "calendar.json") } = {}) {
+function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), "calendar.json"), profileId = 'local', seedDemo = true } = {}) {
   if (filePath !== ":memory:") fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const db = new DatabaseSync(filePath, { timeout: 5000 });
   try {
@@ -69,7 +69,8 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
 
   const extra = integrationStorage.attach(db, transaction, (id) => parse(db.prepare("SELECT data FROM journals WHERE id=?").get(id)));
 
-  const taskStore = taskStorage.attach(db, transaction);
+  const taskStore = taskStorage.attach(db, transaction, profileId);
+  const portable = require('./auth/portable.cjs').attach(db, transaction, profileId);
 
   try {
     // Acquire the writer lock before reading the version: two app processes may start together.
@@ -104,7 +105,7 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
       taskStorage.migrate(db);
       // Import with the schema in one transaction; preserve the original JSON.
       const imported = filePath !== ":memory:" && fs.existsSync(legacyFile);
-      const data = ensureShape(imported ? JSON.parse(fs.readFileSync(legacyFile, "utf8")) : defaultData);
+      const data = ensureShape(imported ? JSON.parse(fs.readFileSync(legacyFile, "utf8")) : seedDemo ? defaultData : { settings: { aiProvider: 'local' }, events: [], journals: [], journalAnalyses: [] });
       db.prepare("INSERT INTO settings VALUES(1, ?)").run(JSON.stringify(data.settings));
       data.events.forEach(putEvent);
       data.journals.forEach(putJournal);
@@ -120,6 +121,7 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
   const store = {
     ...extra,
     ...taskStore,
+    ...portable,
     getSettings: () => parse(db.prepare("SELECT data FROM settings WHERE id=1").get()),
     updateSettings(patch) {
       return transaction(() => {

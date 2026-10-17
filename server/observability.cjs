@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const { performance } = require('node:perf_hooks');
 
 const TOOLS = new Set(['read_evidence', 'get_planning_context', 'preview_plan', 'finish_analysis', 'search_personal_memory', 'research_web', 'unknown']);
-const REASONS = new Set(['finished', 'local_provider', 'missing_credentials', 'unsupported_provider', 'validation', 'provider_error', 'timeout', 'turn_limit', 'tool_limit', 'error_limit', 'size_limit']);
+const REASONS = new Set(['finished', 'local_provider', 'missing_credentials', 'unsupported_provider', 'validation', 'provider_error', 'cancelled', 'timeout', 'turn_limit', 'tool_limit', 'error_limit', 'size_limit']);
 const uuid = (v) => typeof v === 'string' && /^[0-9a-f-]{36}$/.test(v);
 const number = (v, max = 1e9) => Number.isFinite(v) && v >= 0 ? Math.min(max, Math.floor(v)) : undefined;
 

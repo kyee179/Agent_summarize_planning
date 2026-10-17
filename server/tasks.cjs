@@ -34,9 +34,8 @@ function migrate(db) {
   }
 }
 
-// A database is one explicit local profile. Future login selects a different profile/database.
-function attach(db, transaction) {
-  const profile = 'local';
+// A database belongs to one server-selected local or verified account profile.
+function attach(db, transaction, profile = 'local') {
   const get = id => {
     if (typeof id !== 'string') return null;
     const row = db.prepare('SELECT data FROM durable_tasks WHERE id=? AND profile_id=?').get(id, profile);

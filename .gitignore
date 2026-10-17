@@ -22,3 +22,8 @@ server/data/
 /credentials.json
 /google_setup/
 **/credentials.encrypted*
+**/profile-credentials.encrypted*
+**/session.encrypted*
+**/hosted-auth.json*
+/profiles/
+/exports/

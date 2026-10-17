@@ -100,8 +100,10 @@ function normalizeJournal(payload, existing = {}) {
   };
 }
 
-function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Date().toISOString(), integrations, integrationOptions = {}, telemetry = createTelemetry() }) {
+function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Date().toISOString(), integrations, integrationOptions = {}, analyze = analyzeJournal, telemetry = createTelemetry() }) {
   const app = express();
+  const providerEnv = integrationOptions.env || process.env;
+  const profileProviderConfig = settings => getPublicProviderConfig(settings, providerEnv);
   const service = integrations || createIntegrations(store, { ...integrationOptions, clock });
   app.locals.closeIntegrations = () => service.close();
   app.disable("x-powered-by");
@@ -122,9 +124,9 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
   app.get('/api/diagnostics', (_req, res) => {
     let database;
     try { database = store.health(); } catch { database = { ready: false, schemaVersion: null }; }
-    let sync = null, connected = false, provider = getPublicProviderConfig();
+    let sync = null, connected = false, provider = profileProviderConfig();
     if (database.ready) {
-      try { sync = store.integrationState('googleSync'); connected = Boolean(store.integrationState('googleTokens')); provider = getPublicProviderConfig(store.getSettings()); }
+      try { sync = store.integrationState('googleSync'); connected = Boolean(store.integrationState('googleTokens')); provider = profileProviderConfig(store.getSettings()); }
       catch { database = { ready: false, schemaVersion: database.schemaVersion }; }
     }
     const googleCacheStale = connected && (!sync?.syncedAt || !sync?.calendarIds?.length || Date.parse(sync.syncedAt) < Date.parse(clock()) - 30 * 60000);
@@ -150,12 +152,13 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
 
   app.get("/api/settings", (_req, res) => {
     const settings = store.getSettings();
-    res.json({ ...settings, ...getPublicProviderConfig(settings), aiProviderConfigured: getConfiguredProviders() });
+    res.json({ ...settings, ...profileProviderConfig(settings), aiProviderConfigured: getConfiguredProviders(providerEnv) });
   });
 
   app.put("/api/settings", (req, res) => {
     const allowed = ["timezone", "locale", "weekStartsOn", "defaultNotifyMinutesBefore", "aiProvider", "dailyAiRequestLimit", "planningLeadMinutes", "defaultAvailability"];
     const patch = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
+    if (patch.dailyAiRequestLimit !== undefined && (!Number.isInteger(patch.dailyAiRequestLimit) || patch.dailyAiRequestLimit < 1 || patch.dailyAiRequestLimit > 100)) return res.status(400).json({ error: 'Daily AI limit must be 1–100 requests' });
     if (patch.planningLeadMinutes !== undefined && (!Number.isInteger(patch.planningLeadMinutes) || patch.planningLeadMinutes < 1 || patch.planningLeadMinutes > 120)) return res.status(400).json({ error: 'Review time must be 1–120 minutes' });
     if (patch.timezone !== undefined || patch.defaultAvailability !== undefined) {
       const settings = { ...store.getSettings(), ...patch };
@@ -165,7 +168,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
       } });
     }
     const updated = store.updateSettings(patch);
-    res.json({ ...updated, ...getPublicProviderConfig(updated), aiProviderConfigured: getConfiguredProviders() });
+    res.json({ ...updated, ...profileProviderConfig(updated), aiProviderConfigured: getConfiguredProviders(providerEnv) });
   });
 
   app.get("/api/events", (req, res) => {
@@ -306,7 +309,10 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
     store.assertCalendarCoverage(planningRange(inputPlan), asOf);
     const existingEvents = store.listPlanningEvents(planningRange(inputPlan));
     const relatedJournals = store.listJournals({ type: journal.type === "daily" ? "weekly" : undefined }).filter((item) => item.id !== journal.id).slice(0, 5);
-    const interpreted = await analyzeJournal({
+    const releaseAnalysis = req.profileSession?.startAnalysis(settings) || (() => {});
+    try {
+    const interpreted = await analyze({
+      env: providerEnv, signal: req.profileSession?.signal,
       ...service.context(req.body, journal, settings),
       observe: req.observe,
       journal,
@@ -315,6 +321,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
       outputLanguage: req.body.outputLanguage,
       availability, targetDate, existingEvents, notBefore: new Date(Date.parse(asOf) + (settings.planningLeadMinutes || 5) * 60000).toISOString()
     });
+    req.profileSession?.assertCurrent();
     const result = scheduleAnalysis(interpreted, { events: existingEvents, settings, notBefore: new Date(Date.parse(clock()) + (settings.planningLeadMinutes || 5) * 60000).toISOString(),
       availabilitySource: req.body.availability !== undefined ? "request" : "settings" });
     const analysis = {
@@ -329,6 +336,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
     if (!current || current.updatedAt !== journal.updatedAt) return res.status(409).json({ error: "Journal changed during analysis; try again" });
     assertScheduleCurrent(analysis, store.listPlanningEvents(planningRange(analysis.contract.plan)), store.getSettings(), clock());
     res.status(201).json(store.saveJournalAnalysis(analysis));
+    } finally { releaseAnalysis(); }
   });
 
   app.use((error, req, res, _next) => {
@@ -340,12 +348,12 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
   return app;
 }
 
-function getConfiguredProviders() {
+function getConfiguredProviders(env = process.env) {
   return {
-    openai: Boolean(process.env.OPENAI_API_KEY),
-    gemini: Boolean(process.env.GEMINI_API_KEY),
-    groq: Boolean(process.env.GROQ_API_KEY),
-    glm: Boolean(process.env.GLM_API_KEY),
+    openai: Boolean(env.OPENAI_API_KEY),
+    gemini: Boolean(env.GEMINI_API_KEY),
+    groq: Boolean(env.GROQ_API_KEY),
+    glm: Boolean(env.GLM_API_KEY),
     local: true
   };
 }
@@ -357,6 +365,17 @@ function startServer(options = {}) {
   // Authenticate before opening a database so a configuration error has no side effects.
   const { validateToken } = require("./security.cjs");
   validateToken(apiToken);
+  if (options.auth !== false) {
+    const gateway = require('./auth/gateway.cjs').createProfileGateway({ dataFile, apiToken, allowedOrigins, buildApp: createApp,
+      clock: options.clock, env: options.env || process.env, authOptions: options.authOptions, vault: options.vault,
+      credentialsFactory: options.credentialsFactory, onChange: options.onProfileChange });
+    const server = gateway.app.listen(Number(port), '127.0.0.1', () => console.log('Study Calendar API listening on http://127.0.0.1:' + server.address().port));
+    server.profileGateway = gateway;
+    Object.defineProperty(server, 'calendarStore', { get: () => gateway.store });
+    server.on('close', () => gateway.close());
+    server.on('error', () => gateway.close());
+    return server;
+  }
   const store = createStore(dataFile, { legacyFile });
   const telemetry = options.telemetry || createTelemetry({ directory: dataFile === ':memory:' ? null : path.join(path.dirname(path.resolve(dataFile)), 'telemetry') });
   const app = createApp({ store, apiToken, allowedOrigins, telemetry });

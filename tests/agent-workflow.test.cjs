@@ -139,6 +139,14 @@ test("per-request timeout cancels a stalled provider even when it ignores the ab
   assert.equal(run.metadata.stopReason, "timeout"); assert.equal(signal.aborted, true);
 });
 
+test('closing a profile interrupts a provider that ignores cancellation and records an allowlisted stop reason', async () => {
+  const controller = new AbortController(), adapter = scriptAdapter([]); let providerSignal;
+  adapter.complete = async (_encoded, options) => { providerSignal = options.signal; queueMicrotask(() => controller.abort()); return new Promise(() => {}); };
+  const result = await runWorkflow(context({ signal: controller.signal }), adapter, loadSkills());
+  assert.equal(result.metadata.stopReason, 'cancelled'); assert.equal(providerSignal.aborted, true);
+  assertSchema('agentWorkflow', result.metadata); assert.equal(result.analysis, undefined);
+});
+
 test("total elapsed time, oversized arguments/results/transcripts/requests, and total outgoing bytes are bounded", async () => {
   const ctx = context();
   let ticks = 0;

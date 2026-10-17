@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, CircleHelp, House, Link2, Plus, Settings2, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from './api.js';
+import { AccountPanel } from './features/AccountPanel.jsx';
 import { useWorkspace } from './app/useWorkspace.js';
 import { CalendarWorkspace, EmptyState, EventList } from './features/CalendarWorkspace.jsx';
 import { JournalWorkspace } from './features/JournalWorkspace.jsx';
@@ -21,12 +22,14 @@ const destinations = [
   { id: 'settings', label: 'Settings', icon: Settings2, description: 'A calendar that works around you.' }
 ];
 
-export default function App() {
+export default function App({ account, onSignOut, onAccountChanged }) {
   const w = useWorkspace();
   const [mode, setMode] = useState('month'), [optionsOpen, setOptionsOpen] = useState(false);
   const [event, setEvent] = useState(null), [confirmation, setConfirmation] = useState(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
-  const notified = useRef(new Set());
+  const notified = useRef(new Set()), notificationInstances = useRef(new Set()), mounted = useRef(true);
+  const [accountOpen, setAccountOpen] = useState(false);
+  useEffect(() => { mounted.current = true; const instances = notificationInstances.current; return () => { mounted.current = false; for (const notification of instances) notification.close(); instances.clear(); }; }, []);
   const current = destinations.find(item => item.id === w.page);
   const todayEvents = eventsOnDay(w.nearbyEvents, w.today, w.settings.timezone);
   const todayJournal = w.journals.find(entry => entry.journalDate === w.today && entry.type === 'daily');
@@ -44,7 +47,7 @@ export default function App() {
       const key = `${occurrenceKey(item)}:${at}`;
       if (at <= w.now.getTime() && w.now.getTime() - at < 86400000 && !notified.current.has(key)) {
         notified.current.add(key);
-        api.claimReminder(key, w.now.toISOString()).then(({ claimed }) => { if (claimed) new Notification(item.title, { body: `${timeLabel(item.startsAt, w.settings.timezone)}–${timeLabel(item.endsAt, w.settings.timezone)} (${w.settings.timezone})`, tag: key }); }).catch(() => notified.current.delete(key));
+        api.claimReminder(key, w.now.toISOString()).then(({ claimed }) => { if (claimed && mounted.current) { const notification = new Notification(item.title, { body: `${timeLabel(item.startsAt, w.settings.timezone)}–${timeLabel(item.endsAt, w.settings.timezone)} (${w.settings.timezone})`, tag: key }); notificationInstances.current.add(notification); notification.onclose = () => notificationInstances.current.delete(notification); } }).catch(() => notified.current.delete(key));
       }
     });
   }, [w.now, w.nearbyEvents]);
@@ -66,6 +69,11 @@ export default function App() {
   function newEvent(day = w.selectedDate) { setEvent({ date: day }); }
   async function prepare() { const saved = await w.save(); if (saved) w.setPage('plan'); }
   function changedCalendar() { w.invalidate(); return w.reloadEvents(); }
+  function leaveWorkspace() {
+    setAccountOpen(false);
+    if (w.dirty || w.busy) setConfirmation({ title: 'Close this workspace?', message: w.dirty ? 'Your journal has unsaved changes. Save it first, or discard the changes and close this workspace.' : 'An analysis is running. Closing this workspace cancels its pending work.', confirmLabel: 'Close workspace', action: onSignOut });
+    else onSignOut();
+  }
   async function confirmAction() {
     setConfirmBusy(true);
     try { await confirmation.action(); setConfirmation(null); }
@@ -77,7 +85,7 @@ export default function App() {
       <nav className="primary-nav" aria-label="Main navigation">{destinations.slice(0, 4).map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-current={w.page === id ? 'page' : undefined} onClick={() => w.setPage(id)}><Icon size={19} /><span>{label}</span>{id === 'plan' && w.phase === 'ready' && <span className="nav-indicator" aria-label="Plan ready for review" />}</button>)}</nav>
       <div className="sidebar-note"><span className="subtle-label">Your space to reflect</span><p>Start with your day.<br />Make time for what comes next.</p><button className="text-button" type="button" onClick={writeToday}>Write a journal<ArrowRight size={14} /></button></div>
       <nav className="secondary-nav" aria-label="Workspace preferences">{destinations.slice(4).map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-current={w.page === id ? 'page' : undefined} onClick={() => w.setPage(id)}><Icon size={18} /><span>{label}</span></button>)}</nav>
-      <div className="sidebar-footer"><span>{w.settings.timezone}</span><small>Calendar App 2.0</small></div>
+      <div className="sidebar-footer">{account && <button type="button" className="account-button" onClick={() => setAccountOpen(true)}><span className="account-avatar">{(account.session.name || "L").slice(0, 1).toUpperCase()}</span><span><strong>{account.session.name}</strong><small>{account.session.kind === "account" ? "Account & workspace" : "Local workspace"}</small></span><ChevronRight size={14} /></button>}<span>{w.settings.timezone}</span><small>Calendar App 2.0</small></div>
     </aside>
     <main className="workspace" id="workspace"><header className="page-header"><div><p className="page-context">Your workspace <ChevronRight size={12} /> {current.label}</p><h1>{current.label}</h1><p>{current.description}</p></div><div className="header-actions">{['today', 'calendar'].includes(w.page) && <button className="primary-button" type="button" onClick={() => newEvent(w.page === 'today' ? w.today : w.selectedDate)}><Plus size={17} />Add event</button>}{w.page === 'journal' && <button className="secondary-button" type="button" disabled={w.busy} onClick={() => guard(w.newJournal)}><Plus size={17} />New entry</button>}</div></header>
       {w.notice && <div className={`workspace-notice ${w.notice.tone}`} role={w.notice.tone === 'error' ? 'alert' : 'status'}><span>{w.notice.tone === 'error' ? <CircleHelp size={17} /> : <Check size={17} />}{w.notice.message}</span><button className="icon-button" type="button" aria-label="Dismiss message" onClick={() => w.setNotice(null)}><X size={16} /></button></div>}
@@ -97,6 +105,7 @@ export default function App() {
     </main>
     {optionsOpen && <AnalysisOptions options={w.options} onChange={w.setOptions} status={w.connections} settings={w.settings} onClose={() => setOptionsOpen(false)} onConnections={() => { setOptionsOpen(false); w.setPage('connections'); }} />}
     {event && <EventDrawer entry={event} settings={w.settings} onClose={() => setEvent(null)} onSaved={async () => { setEvent(null); w.invalidate(); await w.reloadEvents(); w.notify('Calendar updated.'); }} />}
+    {accountOpen && <AccountPanel account={account} onClose={() => setAccountOpen(false)} onSignOut={leaveWorkspace} onRemoved={() => { setAccountOpen(false); onAccountChanged(); }} />}
     {confirmation && <ConfirmDialog {...confirmation} onConfirm={confirmAction} onClose={() => setConfirmation(null)} busy={confirmBusy} />}
   </div>;
 }

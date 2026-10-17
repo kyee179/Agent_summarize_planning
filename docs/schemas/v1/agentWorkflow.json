@@ -81,6 +81,7 @@
         "unsupported_provider",
         "validation",
         "provider_error",
+        "cancelled",
         "timeout",
         "turn_limit",
         "tool_limit",

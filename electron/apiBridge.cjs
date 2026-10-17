@@ -7,6 +7,11 @@ function isAllowedRequest(route, method) {
   const base = /^\/api\/(time|settings|events|journals)$/.test(url.pathname);
   const item = /^\/api\/(events|journals)\/[^/]+$/.test(url.pathname);
   const action = /^\/api\/journals\/[^/]+\/(analysis|analyze|apply-drafts)$/.test(url.pathname);
+  if (/^\/api\/auth\/(login|signup|confirm|resend|reset-request|recover|configure|local|logout|restore)$/.test(url.pathname)) return method === 'POST';
+  if (url.pathname === '/api/auth/status') return method === 'GET';
+  if (/^\/api\/account\/(onboarding|import-local|remove-local-data)$/.test(url.pathname)) return method === 'POST';
+  if (/^\/api\/account\/(status|export)$/.test(url.pathname)) return method === 'GET';
+  if (url.pathname === '/api/account/services') return ['GET', 'POST'].includes(method);
   if (url.pathname === '/api/tasks' && method === 'GET') return true;
   if (/^\/api\/tasks\/task(?:%3A|:)[0-9a-f-]{36}$/i.test(url.pathname) && method === 'PUT') return true;
   if (url.pathname === '/api/reminders/claim' && method === 'POST') return true;

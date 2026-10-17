@@ -100,18 +100,18 @@ function summarizeWeekly(sentences, tasks) {
   return `Partial journal context includes ${themes.join(", ")}. ${tasks.length} possible follow-up task${tasks.length === 1 ? "" : "s"} were detected. The supplied notes do not establish complete weekly coverage.`;
 }
 
-function getProviderConfig(settings = {}) {
-  const provider = process.env.AI_PROVIDER || settings.aiProvider || "glm";
+function getProviderConfig(settings = {}, env = process.env) {
+  const provider = env.AI_PROVIDER || settings.aiProvider || "glm";
   return {
     provider,
-    openaiKey: process.env.OPENAI_API_KEY,
-    openaiModel: process.env.OPENAI_MODEL || "gpt-4.1-mini",
-    geminiKey: process.env.GEMINI_API_KEY,
-    geminiModel: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite",
-    groqKey: process.env.GROQ_API_KEY,
-    groqModel: process.env.GROQ_MODEL || "llama-3.1-8b-instant",
-    glmKey: process.env.GLM_API_KEY,
-    glmModel: process.env.GLM_MODEL || "glm-4-flash"
+    openaiKey: env.OPENAI_API_KEY,
+    openaiModel: env.OPENAI_MODEL || "gpt-4.1-mini",
+    geminiKey: env.GEMINI_API_KEY,
+    geminiModel: env.GEMINI_MODEL || "gemini-3.1-flash-lite",
+    groqKey: env.GROQ_API_KEY,
+    groqModel: env.GROQ_MODEL || "llama-3.1-8b-instant",
+    glmKey: env.GLM_API_KEY,
+    glmModel: env.GLM_MODEL || "glm-4-flash"
   };
 }
 
@@ -144,7 +144,7 @@ async function analyzeJournal(input = {}) {
   }
   input = { ...input, outputLanguage: language.outputLanguage(input.journal?.content, input.outputLanguage) };
   const settings = input.settings || {};
-  const config = getProviderConfig(settings);
+  const config = getProviderConfig(settings, input.env || process.env);
   const availability = input.availability !== undefined ? input.availability : settings.defaultAvailability || [{ startsAt: "20:00", endsAt: "24:00" }];
   const expectedPlan = { targetDate: input.targetDate || input.journal?.journalDate, timezone: settings.timezone || "UTC", availability, bufferMinutes: 15 };
   // Validate workflow constraints before consuming provider budget.
@@ -187,11 +187,11 @@ async function analyzeJournal(input = {}) {
   return finish(fallback);
 }
 
-function getPublicProviderConfig(settings = {}) {
-  const config = getProviderConfig(settings);
+function getPublicProviderConfig(settings = {}, env = process.env) {
+  const config = getProviderConfig(settings, env);
   const models = { openai: config.openaiModel, groq: config.groqModel, gemini: config.geminiModel, glm: config.glmModel, local: "rule-based-v1" };
   return { effectiveAiProvider: config.provider, aiModel: Object.hasOwn(models, config.provider) ? models[config.provider] : null,
-    aiProviderOverride: Boolean(process.env.AI_PROVIDER) };
+    aiProviderOverride: Boolean(env.AI_PROVIDER) };
 }
 
 module.exports = { analyzeJournal, inferTask, localRuleBasedAnalysis, splitSentences, normalizeRemoteAnalysis, getPublicProviderConfig };

@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "./api.js";
+import { api, invalidateRequests } from "./api.js";
 
 afterEach(() => { delete window.studyCalendar; vi.unstubAllGlobals(); });
 
 describe("calendar request transport", () => {
+  it('discards a delayed desktop response after a workspace closes', async () => {
+    let resolve;
+    window.studyCalendar = { request: vi.fn(() => new Promise(done => { resolve = done; })) };
+    const pending = api.listJournals(); invalidateRequests(); resolve({ status: 200, body: [{ title: 'Previous private journal' }] });
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
   it("applies an analysis with one IPC request and no token in the renderer", async () => {
     const request = vi.fn().mockResolvedValue({ status: 201, body: { events: [{ id: "event" }], replayed: false } });
     window.studyCalendar = { request };

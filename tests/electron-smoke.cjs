@@ -8,6 +8,37 @@ app.disableHardwareAcceleration();
 app.on("browser-window-created", (_event, window) => {
   window.webContents.once("did-finish-load", async () => {
     try {
+      window.webContents.setBackgroundThrottling(false);
+      const captureAuth = async (name, width = 1280) => {
+        window.setMinimumSize(320, 480); window.setContentSize(width, 840);
+        await window.webContents.executeJavaScript(`(async () => { window.scrollTo(0,0); await new Promise(resolve => setTimeout(resolve, 100)); if (document.documentElement.scrollWidth > innerWidth + 2) throw new Error('Auth screen overflows'); })()`);
+        if (process.env.CALENDAR_UI_CAPTURE_DIRECTORY) { fs.mkdirSync(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, { recursive: true }); fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, name + '.png'), (await window.webContents.capturePage()).toPNG()); }
+      };
+      await window.webContents.executeJavaScript(`(async () => {
+        for (let i = 0; i < 150 && !document.querySelector('.auth-card'); i++) await new Promise(resolve => setTimeout(resolve, 30));
+        if (!document.querySelector('.auth-card')) throw new Error('Welcome screen missing');
+        const locked = await window.studyCalendar.request('/api/events'); if (locked.status !== 401) throw new Error('Workspace opened before sign-in');
+        if (document.querySelector('nav')) throw new Error('Workspace visible while signed out');
+      })()`);
+      await captureAuth('welcome'); await captureAuth('welcome-mobile', 390); await captureAuth('welcome-minimum', 640);
+      await window.webContents.executeJavaScript(`(async () => {
+        Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Continue offline').click();
+        for (let i = 0; i < 150 && !document.querySelector('.onboarding-card'); i++) await new Promise(resolve => setTimeout(resolve, 30));
+        if (!document.querySelector('.onboarding-card')) throw new Error('Onboarding missing');
+      })()`);
+      await captureAuth('onboarding-routine'); await captureAuth('onboarding-mobile', 390);
+      for (const name of ['planning', 'workspace']) {
+        await window.webContents.executeJavaScript(`(async () => { document.querySelector('.onboarding-card form').requestSubmit(); await new Promise(resolve => setTimeout(resolve, 100)); })()`);
+        await captureAuth('onboarding-' + name);
+      }
+      await window.webContents.executeJavaScript(`(async () => {
+        if (document.querySelector('input[type="checkbox"]:checked')) throw new Error('Unexpected onboarding consent');
+        document.querySelector('.onboarding-card form').requestSubmit();
+        for (let i = 0; i < 150 && !document.querySelector('.primary-nav'); i++) await new Promise(resolve => setTimeout(resolve, 30));
+        if (!document.querySelector('.primary-nav')) throw new Error('Workspace did not open after onboarding');
+        for (let i = 0; i < 150 && document.querySelector('.workspace-loading'); i++) await new Promise(resolve => setTimeout(resolve, 30));
+      })()`);
+      window.setContentSize(1280, 840);
       const result = await window.webContents.executeJavaScript(`(async () => {
         if (typeof window.studyCalendar?.request !== 'function') throw new Error('Missing preload bridge');
         if ('apiToken' in window.studyCalendar || typeof window.require !== 'undefined') throw new Error('Renderer isolation failed');
@@ -115,7 +146,7 @@ app.on("browser-window-created", (_event, window) => {
         return { events: first.body.events.length, pageRendered: document.querySelector('main') !== null };
       })()`);
       if (!result.pageRendered) throw new Error("React did not render");
-      const credentialFile = path.join(process.env.CALENDAR_SMOKE_DIRECTORY, 'credentials.encrypted');
+      const credentialFile = path.join(process.env.CALENDAR_SMOKE_DIRECTORY, 'profile-credentials.encrypted');
       if (fs.existsSync(credentialFile) && fs.readFileSync(credentialFile).includes('synthetic-desktop-credential')) throw new Error('Credentials were stored as plaintext');
       if (process.env.CALENDAR_UI_CAPTURE_DIRECTORY) {
         window.webContents.setBackgroundThrottling(false);
@@ -152,7 +183,16 @@ app.on("browser-window-created", (_event, window) => {
         await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('h2')).find(element => element.textContent === 'Set up your services').closest('section').scrollIntoView()`);
         fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, 'service-setup.png'), (await window.webContents.capturePage()).toPNG());
       }
-      console.log("Desktop smoke passed: scheduling, stale-calendar rejection, SQLite, IPC, batch replay, isolation, local memory, integration setup, tracing and monitoring UI.");
+      await window.webContents.executeJavaScript(`document.querySelector('.account-button').click()`);
+      await new Promise(resolve => setTimeout(resolve, 100)); await captureAuth('account');
+      await window.webContents.executeJavaScript(`(async () => {
+        Array.from(document.querySelector('dialog').querySelectorAll('button')).find(button => button.textContent === 'Switch workspace').click();
+        const confirmation = document.querySelector('dialog[aria-label="Close this workspace?"]'); if (confirmation) Array.from(confirmation.querySelectorAll('button')).find(button => button.textContent === 'Close workspace').click();
+        for (let i = 0; i < 150 && !document.querySelector('.auth-card'); i++) await new Promise(resolve => setTimeout(resolve, 30));
+        if (!document.querySelector('.auth-card') || document.querySelector('nav')) throw new Error('Workspace did not clear after sign-out');
+        if ((await window.studyCalendar.request('/api/journals')).status !== 401) throw new Error('Signed-out data access allowed');
+      })()`);
+      console.log("Desktop smoke passed: locked welcome, offline onboarding, account switching, scheduling, stale-calendar rejection, SQLite, IPC, batch replay, isolation, local memory, integration setup, tracing and monitoring UI.");
       app.quit();
     } catch (error) {
       console.error(`Desktop smoke failed: ${error.message}`);

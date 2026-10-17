@@ -8,22 +8,52 @@ export class ApiError extends Error {
   }
 }
 
+let requestGeneration = 0;
+const pendingRequests = new Set();
+export function invalidateRequests() {
+  requestGeneration++;
+  for (const controller of pendingRequests) controller.abort();
+  pendingRequests.clear();
+}
+
 async function request(path, options = {}) {
+  const generation = requestGeneration, controller = new AbortController();
+  pendingRequests.add(controller);
   let status, body;
+  try {
   if (window.studyCalendar?.request) {
     ({ status, body } = await window.studyCalendar.request(path, options));
   } else {
     const response = await fetch(path, {
-      ...options, headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(120000)
+      ...options, credentials: 'same-origin', headers: { "Content-Type": "application/json" }, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120000)])
     });
     status = response.status;
     body = status === 204 ? null : await response.json().catch(() => ({}));
   }
+  if (generation !== requestGeneration) throw new DOMException('Previous workspace closed', 'AbortError');
+  if (status === 401 && !path.startsWith('/api/auth/')) window.dispatchEvent(new CustomEvent('calendar:session-expired'));
   if (status >= 400) throw new ApiError(status, body);
   return body;
+  } finally { pendingRequests.delete(controller); }
 }
 
 export const api = {
+  authStatus: () => request('/api/auth/status'),
+  configureAuth: input => request('/api/auth/configure', { method: 'POST', body: JSON.stringify(input) }),
+  continueLocal: input => request('/api/auth/local', { method: 'POST', body: JSON.stringify(input || {}) }),
+  signIn: input => request('/api/auth/login', { method: 'POST', body: JSON.stringify(input) }),
+  signUp: input => request('/api/auth/signup', { method: 'POST', body: JSON.stringify(input) }),
+  confirmEmail: input => request('/api/auth/confirm', { method: 'POST', body: JSON.stringify(input) }),
+  resendConfirmation: input => request('/api/auth/resend', { method: 'POST', body: JSON.stringify(input) }),
+  requestPasswordReset: input => request('/api/auth/reset-request', { method: 'POST', body: JSON.stringify(input) }),
+  recoverPassword: input => request('/api/auth/recover', { method: 'POST', body: JSON.stringify(input) }),
+  signOut: () => request('/api/auth/logout', { method: 'POST', body: '{}' }),
+  restoreSession: () => request('/api/auth/restore', { method: 'POST', body: '{}' }),
+  finishOnboarding: input => request('/api/account/onboarding', { method: 'POST', body: JSON.stringify(input) }),
+  accountStatus: () => request('/api/account/status'),
+  exportWorkspace: () => request('/api/account/export'),
+  importLocal: sourceId => request('/api/account/import-local', { method: 'POST', body: JSON.stringify({ sourceId, confirm: true }) }),
+  removeLocalAccountData: confirmName => request('/api/account/remove-local-data', { method: 'POST', body: JSON.stringify({ confirmName }) }),
   listTasks: (journalId) => request('/api/tasks' + (journalId ? '?journalId=' + encodeURIComponent(journalId) : '')),
   updateTask: (id, body) => request('/api/tasks/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) }),
   claimReminder: (id, at) => request('/api/reminders/claim', { method: 'POST', body: JSON.stringify({ id, at }) }),
