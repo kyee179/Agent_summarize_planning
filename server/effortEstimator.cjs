@@ -34,11 +34,16 @@ function estimate({
     .filter(
       (x) =>
         x.completed === true &&
+        Number.isFinite(x.actualMinutes) &&
         x.actualMinutes > 0 &&
+        Number.isFinite(x.baseline) &&
         x.baseline > 0 &&
         x.features?.category === features.category &&
         x.features?.scope === features.scope &&
         x.features?.unit === features.unit &&
+        ["quantity", "revise_or_create", "complexity", "familiarity"].every(
+          (key) => (x.features?.[key] ?? null) === (features[key] ?? null),
+        ) &&
         x.baselineVersion === (features.baselineVersion || "scoped-v1") &&
         Number.isFinite(Date.parse(x.completedAt)) &&
         Date.parse(x.completedAt) <= Date.parse(now),

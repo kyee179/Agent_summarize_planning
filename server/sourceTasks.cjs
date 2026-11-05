@@ -797,6 +797,7 @@ function attach(db, transaction, profile, getStore) {
           actualMinutes: input.actualMinutes,
           completed: input.completed,
           completedAt: now,
+          estimatedAt: plan.createdAt,
           generation: item.generation,
           baseline: snapshot.baseline,
           baselineVersion: snapshot.baselineVersion,

@@ -12,6 +12,14 @@ const {
 const { createGmail, SCOPE } = require("../server/integrations/gmail.cjs");
 const { vault } = require("../server/integrations/google.cjs");
 const { createWorkCapture } = require("../server/integrations/workCapture.cjs");
+const workDetails = {
+  category: "review",
+  unit: "chart",
+  quantity: 3,
+  revise_or_create: "revise",
+  complexity: 2,
+  familiarity: 3,
+};
 const now = "2030-01-07T11:40:00Z";
 function fixture(t) {
   const store = createStore(":memory:", { seedDemo: false });
@@ -757,4 +765,111 @@ test("HTML-only mail becomes inert source text and multipart alternatives are no
     );
     assert.equal(store.listCandidates().length, 1);
   }
+});
+
+test("reviewed work details connect measured outcomes to the automatic estimate and training export", (t) => {
+  const store = fixture(t),
+    first = accepted(store, 60);
+  store.updateTask(first.taskId, {
+    revision: 1,
+    effort: { minutes: 60, scope: "remaining_task" },
+    estimateFeatures: workDetails,
+  });
+  const plan = store.prepareTaskPlan(
+    { taskIds: [first.taskId], targetDate: "2030-01-07" },
+    now,
+  );
+  const outcome = store.recordTaskEffort(
+    first.taskId,
+    {
+      planId: plan.id,
+      receipt: "reviewed-outcome",
+      actualMinutes: 90,
+      completed: true,
+    },
+    "2030-01-07T13:10:00Z",
+  );
+  assert.equal(outcome.features.complete, true);
+  assert.equal(outcome.features.quantity, 3);
+  assert.equal(outcome.estimatedAt, now);
+  assert.equal(outcome.baseline, 60);
+  const source = store.importTaskSource(
+    {
+      kind: "email",
+      externalId: "second-reviewed-request",
+      text: "Please revise three other charts.",
+    },
+    "2030-01-07T13:30:00Z",
+  );
+  const [candidate] = store.saveTaskDiscovery(source.id, source.version, [
+    { title: "Other charts", quote: source.text, minutes: 60 },
+  ]);
+  const second = store.reviewCandidate(candidate.id, {
+    revision: candidate.revision,
+    state: "accepted",
+  });
+  store.updateTask(second.taskId, {
+    revision: 1,
+    effort: { minutes: 60, scope: "remaining_task" },
+    estimateFeatures: workDetails,
+    useEstimatedEffort: true,
+    estimateScope: "remaining_task",
+  });
+  const learned = store.prepareTaskPlan(
+    { taskIds: [second.taskId], targetDate: "2030-01-07" },
+    "2030-01-07T13:30:00Z",
+  );
+  assert.equal(learned.contract.estimates[0].basis, "personal_history");
+  assert.equal(learned.contract.estimates[0].effortMinutes.expected, 64);
+  assert.equal(learned.estimateSnapshots[0].baseline, 60);
+  assert.equal(store.portableSnapshot().outcomes[0].features.unit, "chart");
+  store.updateTask(second.taskId, {
+    revision: 2,
+    effort: { minutes: 120, scope: "remaining_task" },
+    estimateFeatures: { ...workDetails, quantity: 6 },
+    useEstimatedEffort: true,
+  });
+  assert.equal(
+    store.prepareTaskPlan(
+      { taskIds: [second.taskId], targetDate: "2030-01-07" },
+      "2030-01-07T13:30:00Z",
+    ).estimateSnapshots[0].prediction.comparableTasks,
+    0,
+  );
+});
+test("unknown total effort does not reuse a known short-session baseline", (t) => {
+  const store = fixture(t),
+    { taskId } = accepted(store, 60);
+  store.updateTask(taskId, {
+    revision: 1,
+    useEstimatedEffort: true,
+    estimateScope: "remaining_task",
+  });
+  const plan = store.prepareTaskPlan(
+    { taskIds: [taskId], targetDate: "2030-01-07" },
+    now,
+  );
+  assert.equal(plan.contract.estimates.length, 0);
+  assert.equal(plan.contract.plan.unscheduled[0].reason, "unknown_estimate");
+});
+test("estimation descriptors reject invalid or invented field shapes", (t) => {
+  const store = fixture(t),
+    { taskId } = accepted(store, 60);
+  assert.throws(
+    () =>
+      store.updateTask(taskId, {
+        revision: 1,
+        estimateFeatures: { ...workDetails, quantity: 0 },
+      }),
+    /valid estimation/,
+  );
+  assert.throws(
+    () =>
+      store.updateTask(taskId, {
+        revision: 1,
+        estimateFeatures: { ...workDetails, authority: "invented" },
+      }),
+    /valid estimation/,
+  );
+  assert.equal(store.listTasks()[0].revision, 1);
 });
