@@ -164,5 +164,5 @@ export function useWorkspace() {
   function changeOptions(next) { if (running.current) return; setOptions(next); invalidate(); }
   return { page, setPage, settings, events, nearbyEvents, journals, connections, setConnections, journal, analysis, phase, busy, dirty,
     loading, loadingError, eventLoading, notice, setNotice, notify, journalState, options, setOptions: changeOptions, today, now, days, range, activeMonth, setActiveMonth,
-    selectedDate, setSelectedDate, reloadEvents, load, invalidate, newJournal, selectJournal, save, generate, apply, removeJournal, updateSettings, changeJournal };
+    selectedDate, setSelectedDate, reloadEvents, load, invalidate, refreshPlan: async () => { if(!analysis || dirty || running.current) return; running.current=true;setOperationActive(true);try{const result=await api.replanJournal(journal.id,analysis.id);setAnalysis(result);setPhase('ready');notify('Updated task facts used to recalculate the draft.');}catch(e){setPhase('stale');notify(e.message,'error');}finally{running.current=false;setOperationActive(false);}}, newJournal, selectJournal, save, generate, apply, removeJournal, updateSettings, changeJournal };
 }

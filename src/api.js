@@ -38,6 +38,22 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  taskSources:()=>request('/api/task-sources'),
+  addTaskSource:body=>request('/api/task-sources',{method:'POST',body:JSON.stringify({...body,consent:true})}),
+  removeTaskSource:id=>request('/api/task-sources/'+encodeURIComponent(id),{method:'DELETE'}),
+  discoverTasks:(id,allowAI)=>request('/api/task-sources/'+encodeURIComponent(id)+'/discover',{method:'POST',body:JSON.stringify({allowAI})}),
+  reviewCandidate:(id,body)=>request('/api/task-candidates/'+encodeURIComponent(id)+'/review',{method:'POST',body:JSON.stringify(body)}),
+  prepareTaskPlan:body=>request('/api/task-plans',{method:'POST',body:JSON.stringify(body)}),
+  applyTaskPlan:id=>request('/api/task-plans/'+encodeURIComponent(id)+'/apply',{method:'POST',body:'{}'}),
+  recordTaskEffort:(id,body)=>request('/api/tasks/'+encodeURIComponent(id)+'/effort',{method:'POST',body:JSON.stringify(body)}),
+  gmailConnect:()=>request('/api/gmail/connect',{method:'POST',body:'{"consent":true}'}),
+  gmailSync:body=>request('/api/gmail/sync',{method:'POST',body:JSON.stringify({...body,consent:true})}),
+  gmailCancel:()=>request('/api/gmail/cancel',{method:'POST',body:'{}'}),
+  gmailDisconnect:()=>request('/api/gmail',{method:'DELETE'}),
+  captureWindows:()=>request('/api/work-capture/windows',{method:'POST',body:'{"consent":true}'}),
+  captureStart:body=>request('/api/work-capture/start',{method:'POST',body:JSON.stringify({...body,consent:true})}),
+  captureStop:()=>request('/api/work-capture/stop',{method:'POST',body:'{}'}),
+  replanJournal:(id,analysisId)=>request('/api/journals/'+encodeURIComponent(id)+'/replan',{method:'POST',body:JSON.stringify({analysisId})}),
   authStatus: () => request('/api/auth/status'),
   configureAuth: input => request('/api/auth/configure', { method: 'POST', body: JSON.stringify(input) }),
   continueLocal: input => request('/api/auth/local', { method: 'POST', body: JSON.stringify(input || {}) }),

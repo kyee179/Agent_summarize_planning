@@ -2843,3 +2843,7 @@ blockquote small {
     outline: 2px solid Highlight;
   }
 }
+
+.working-editor { display:grid; gap:12px; margin:16px 0; }
+.working-day { display:grid; grid-template-columns:minmax(100px,1fr) 4fr; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
+.working-slots {display:grid;gap:8px}.working-slot { display:flex;gap:10px;align-items:end;flex-wrap:wrap }.working-slot label {min-width:100px;flex:1}.duration-control{display:grid;gap:8px;margin:12px 0}.duration-control input[type=range]{width:100%;accent-color:#2563eb}.source-workspace{display:grid;gap:20px}.source-task{padding:16px;border:1px solid var(--line);border-radius:12px}.source-task blockquote{margin:8px 0;white-space:pre-wrap;overflow-wrap:anywhere}.source-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px}@media(max-width:600px){.working-day{grid-template-columns:1fr}}

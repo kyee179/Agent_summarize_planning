@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { TaskInbox } from './features/TaskInbox.jsx';
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, CircleHelp, House, Link2, Plus, Settings2, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { api } from './api.js';
 import { AccountPanel } from './features/AccountPanel.jsx';
@@ -18,6 +19,7 @@ const destinations = [
   { id: 'calendar', label: 'Calendar', icon: CalendarDays, description: 'See your commitments. Make room for what matters.' },
   { id: 'journal', label: 'Journal', icon: BookOpen, description: 'Capture your day, one thought at a time.' },
   { id: 'plan', label: 'Plan', icon: Sparkles, description: 'Turn reflection into a plan you can review.' },
+  { id: 'tasks', label: 'Tasks', icon: Check, description: 'Review commitments from your sources.' },
   { id: 'connections', label: 'Connections', icon: Link2, description: 'Choose the context that helps you plan.' },
   { id: 'settings', label: 'Settings', icon: Settings2, description: 'A calendar that works around you.' }
 ];
@@ -82,9 +84,9 @@ export default function App({ account, onSignOut, onAccountChanged }) {
 
   return <div className="app-shell"><a className="skip-link" href="#workspace">Skip to workspace</a>
     <aside className="sidebar"><div className="brand"><span className="brand-icon"><CalendarDays size={23} /></span><div><strong>Calendar</strong><span>A little more intentional.</span></div></div>
-      <nav className="primary-nav" aria-label="Main navigation">{destinations.slice(0, 4).map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-current={w.page === id ? 'page' : undefined} onClick={() => w.setPage(id)}><Icon size={19} /><span>{label}</span>{id === 'plan' && w.phase === 'ready' && <span className="nav-indicator" aria-label="Plan ready for review" />}</button>)}</nav>
+      <nav className="primary-nav" aria-label="Main navigation">{destinations.slice(0, 5).map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-current={w.page === id ? 'page' : undefined} onClick={() => w.setPage(id)}><Icon size={19} /><span>{label}</span>{id === 'plan' && w.phase === 'ready' && <span className="nav-indicator" aria-label="Plan ready for review" />}</button>)}</nav>
       <div className="sidebar-note"><span className="subtle-label">Your space to reflect</span><p>Start with your day.<br />Make time for what comes next.</p><button className="text-button" type="button" onClick={writeToday}>Write a journal<ArrowRight size={14} /></button></div>
-      <nav className="secondary-nav" aria-label="Workspace preferences">{destinations.slice(4).map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-current={w.page === id ? 'page' : undefined} onClick={() => w.setPage(id)}><Icon size={18} /><span>{label}</span></button>)}</nav>
+      <nav className="secondary-nav" aria-label="Workspace preferences">{destinations.slice(5).map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-current={w.page === id ? 'page' : undefined} onClick={() => w.setPage(id)}><Icon size={18} /><span>{label}</span></button>)}</nav>
       <div className="sidebar-footer">{account && <button type="button" className="account-button" onClick={() => setAccountOpen(true)}><span className="account-avatar">{(account.session.name || "L").slice(0, 1).toUpperCase()}</span><span><strong>{account.session.name}</strong><small>{account.session.kind === "account" ? "Account & workspace" : "Local workspace"}</small></span><ChevronRight size={14} /></button>}<span>{w.settings.timezone}</span><small>Calendar App 2.0</small></div>
     </aside>
     <main className="workspace" id="workspace"><header className="page-header"><div><p className="page-context">Your workspace <ChevronRight size={12} /> {current.label}</p><h1>{current.label}</h1><p>{current.description}</p></div><div className="header-actions">{['today', 'calendar'].includes(w.page) && <button className="primary-button" type="button" onClick={() => newEvent(w.page === 'today' ? w.today : w.selectedDate)}><Plus size={17} />Add event</button>}{w.page === 'journal' && <button className="secondary-button" type="button" disabled={w.busy} onClick={() => guard(w.newJournal)}><Plus size={17} />New entry</button>}</div></header>
@@ -99,6 +101,7 @@ export default function App({ account, onSignOut, onAccountChanged }) {
         {w.page === 'journal' && <JournalWorkspace workspace={w} onSelect={selectJournal} onNew={() => guard(w.newJournal)} onPrepare={prepare} onCustomize={() => setOptionsOpen(true)} onDelete={() => setConfirmation({ title: 'Delete this journal?', message: 'This removes the journal and its saved analysis. Applied calendar events are kept.', confirmLabel: 'Delete journal', action: w.removeJournal })} />}
         {w.page === 'plan' && <PlanWorkspace workspace={w} onCustomize={() => setOptionsOpen(true)} onJournal={() => w.setPage('journal')} onEvent={item => setEvent({ record: item })} onSelectJournal={entry => guard(() => w.selectJournal(entry))} />}
         <div hidden={w.page !== 'connections'}><IntegrationSettings settings={w.settings} targetDate={w.options.targetDate} onCalendarChanged={changedCalendar} onStatusChanged={w.setConnections} onCustomize={() => setOptionsOpen(true)} /></div>
+        {w.page === 'tasks' && <TaskInbox workspace={w} />}
         <div hidden={w.page !== 'settings'}><SettingsWorkspace settings={w.settings} onSave={w.updateSettings} busy={w.busy} /></div>
       </>}
       <footer className="workspace-footer"><span>Reflect. Make room. Move forward.</span><button className="text-button" type="button" onClick={() => setOptionsOpen(true)} disabled={w.loading || w.busy}><SlidersHorizontal size={14} />Customize analysis</button></footer>

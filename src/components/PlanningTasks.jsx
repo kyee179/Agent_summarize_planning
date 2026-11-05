@@ -16,7 +16,7 @@ export function PlanningTasks({ analysis, selectedTaskId = null, onEdit }) {
         <strong>{task.title}</strong>
         {onEdit && analysis.persistentTasks?.some(item => item.id === task.id) && <button type="button" className="text-button" onClick={() => onEdit(task)}>Confirm or edit facts</button>}
         <small>{task.importance.level} importance ({task.importance.basis}) · {task.status.replaceAll("_", " ")}</small>
-        <small>{range ? `${range.expected} min expected (${range.low}–${range.high} min range)` : "Effort unknown"}</small>
+        <small>{range ? `${range.expected} min planning estimate (${range.low}–${range.high} min range)` : "Effort unknown"}</small>
         {estimate && <small>{estimate.confidence} confidence · {estimate.basis.replaceAll("_", " ")} · {estimate.scope.replaceAll("_", " ")}</small>}
         <small>{task.deadline ? `Deadline: ${new Intl.DateTimeFormat(undefined, { timeZone: contract.plan.timezone, dateStyle: "medium", timeStyle: "short" }).format(new Date(task.deadline.at))}` : "Deadline unknown"}</small>
         <details><summary>Evidence and assumptions</summary>

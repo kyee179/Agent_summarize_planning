@@ -54,7 +54,7 @@ app.on("browser-window-created", (_event, window) => {
         }) });
         if (response.status !== 201) throw new Error('Journal save failed');
         const journal = response.body;
-        await call('/api/settings', { method: 'PUT', body: JSON.stringify({timezone: 'UTC'}) });
+        await call('/api/settings', { method: 'PUT', body: JSON.stringify({timezone: 'UTC',workingCalendar:null}) });
         const meeting = await call('/api/events', { method: 'POST', body: JSON.stringify({
           title: 'Existing recurring commitment', startsAt: '2029-12-25T20:00:00Z', endsAt: '2029-12-25T21:00:00Z',
           calendarType: 'personal', repeat: 'weekly', notificationFormat: 'Desktop notification'
@@ -182,6 +182,24 @@ app.on("browser-window-created", (_event, window) => {
         await capture('Settings', 'settings');
         await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('h2')).find(element => element.textContent === 'Set up your services').closest('section').scrollIntoView()`);
         fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, 'service-setup.png'), (await window.webContents.capturePage()).toPNG());
+      }
+      await window.webContents.executeJavaScript(`(async()=>{
+        const call=async(route,body,method=body?'POST':'GET')=>{const result=await window.studyCalendar.request(route,{method,...(body?{body:JSON.stringify(body)}:{})});if(result.status>=400)throw new Error('Source task IPC: '+route+' '+result.status);return result.body;};
+        await call('/api/settings',{timezone:'UTC',workingCalendar:{version:1,weekdays:[[],[{startsAt:'09:00',endsAt:'12:30'},{startsAt:'14:00',endsAt:'18:00'}],[],[],[],[],[]],exceptions:[]}},'PUT');
+        const source=await call('/api/task-sources',{consent:true,kind:'email',externalId:'desktop-invented-mail',text:'Please revise the three charts.'});
+        const found=await call('/api/task-sources/'+encodeURIComponent(source.id)+'/discover',{allowAI:false});
+        if(found.candidates.length!==1)throw new Error('Source-only discovery failed');const c=found.candidates[0];
+        const reviewed=await call('/api/task-candidates/'+encodeURIComponent(c.id)+'/review',{state:'accepted',revision:c.revision});
+        await call('/api/tasks/'+encodeURIComponent(reviewed.taskId),{revision:1,effort:{minutes:60,scope:'next_session'}},'PUT');
+        const plan=await call('/api/task-plans',{taskIds:[reviewed.taskId],targetDate:'2030-01-07'});
+        if(plan.contract.schemaVersion!==2||plan.contract.plan.blocks.length!==1)throw new Error('Source-only planning failed');
+        const route='/api/task-plans/'+encodeURIComponent(plan.id)+'/apply';await call(route,{});if(!(await call(route,{})).replayed)throw new Error('Source-only replay failed');
+        Array.from(document.querySelectorAll('nav button')).find(b=>b.textContent==='Tasks').click();
+        for(let i=0;i<100&&!document.querySelector('.source-workspace');i++)await new Promise(r=>setTimeout(r,30));
+        if(!document.querySelector('.source-workspace'))throw new Error('Task inbox did not render');
+      })()`);
+      if(process.env.CALENDAR_UI_CAPTURE_DIRECTORY){
+        for(const width of [1280,390]){window.setMinimumSize(320,480);window.setContentSize(width,840);await window.webContents.executeJavaScript('window.scrollTo(0,0)');await new Promise(r=>setTimeout(r,120));await window.webContents.executeJavaScript(`if(document.documentElement.scrollWidth>innerWidth+2)throw new Error('Task inbox horizontal overflow')`);fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY,'task-inbox-'+width+'.png'),(await window.webContents.capturePage()).toPNG());}
       }
       await window.webContents.executeJavaScript(`document.querySelector('.account-button').click()`);
       await new Promise(resolve => setTimeout(resolve, 100)); await captureAuth('account');

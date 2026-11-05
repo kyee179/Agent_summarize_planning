@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DurationControl } from './DurationControl.jsx';
 import { Dialog } from './Dialog.jsx';
 import { api } from '../api.js';
 import { inputTime, wallTimeToISO } from '../lib/dates.js';
@@ -32,7 +33,7 @@ export function TaskFacts({ task, record, tasks, timezone, onClose, onSaved }) {
       <label>Task status<select value={status} onChange={e => setStatus(e.target.value)}>{['open', 'in_progress', 'blocked', 'completed', 'cancelled'].map(v => <option key={v} value={v}>{v.replaceAll('_', ' ')}</option>)}</select></label>
       <label>Confirmed deadline ({timezone})<input type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} /></label>
       <label>Deadline type<select value={kind} onChange={e => setKind(e.target.value)}><option value="hard">Must finish by this time</option><option value="target">Preferred target</option></select></label>
-      <label>Confirmed effort in minutes<input type="number" min={1} max={525600} value={minutes} onChange={e => setMinutes(e.target.value)} /></label>
+      <DurationControl label="Confirmed effort in minutes" value={minutes} onChange={setMinutes}/>
       <label>Effort covers<select value={scope} onChange={e => setScope(e.target.value)}><option value="next_session">One work session</option><option value="remaining_task">All remaining work</option></select></label>
       <label>Importance<select value={importance} onChange={e => setImportance(e.target.value)}>{['unknown', 'low', 'medium', 'high'].map(v => <option key={v} value={v}>{v}</option>)}</select></label>
       <fieldset><legend>Depends on</legend>{tasks.filter(t => t.id !== task.id).map(t => <label className="check-row" key={t.id}><input type="checkbox" checked={dependencies.includes(t.id)} onChange={e => setDependencies(current => e.target.checked ? [...current, t.id] : current.filter(id => id !== t.id))} />{t.title}</label>)}</fieldset>
