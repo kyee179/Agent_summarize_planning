@@ -1,5 +1,9 @@
 # Agent summarization and planning project
 
+## Release correction 0.4.0-rc.2 (2026-11-05)
+
+User authorized merge and release. PR #2 merged as 12bcd940a518009b2d6720fafebc4d29e05742a6; main Windows/Linux CI passed. Tag rc.1 Windows/Linux builds passed, but macOS showed an existing profile realpath-versus-logical-root bug; its stalled test job was cancelled to inspect logs. Fix canonical root comparison while rejecting nested profile redirects, add three synthetic path regressions and bounded server-test timeouts, and advance app/release policy to 0.4.0-rc.2. Do not move the existing tag or publish the rc.1 draft. Current release publication status lives in the workspace brief and GitHub.
+
 ## Planning update 0.4.0 release candidate (2026-11-05)
 
 The user approved UPDATE_IMPLEMENTATION_PLAN.md and implementation is complete on codex/planning-timeframes, based on 07e96e8 and preserving its two prior local commits. Added profile-owned source tasks/inbox, separate read-only Gmail sync, selected-window Windows UI Automation with optional window-only/in-memory OCR, weekly working calendars/exceptions, duration controls and deterministic replanning, scope-specific measured-effort correction, reviewed estimation descriptors and a training-ready outcome export. Optional CatBoost Q10/Q50/Q90 training consumes reviewed exports; synthetic training and three Python data tests passed, without claiming real duration accuracy or promoting a production model. App 0.4.0-rc.1, SQLite 4, source bundle 2 with diary bundle 1 compatibility, prompt 1.4.0, task-planning 1.2.0, dataset 1.3.0 and metrics 4.0.0.
