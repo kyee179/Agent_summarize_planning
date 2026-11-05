@@ -9,7 +9,7 @@ export function TaskFacts({ task, record, tasks, timezone, onClose, onSaved }) {
   const [title, setTitle] = useState(record.title), [status, setStatus] = useState(record.status);
   const [deadline, setDeadline] = useState(confirmed.deadline ? inputTime(confirmed.deadline.at, timezone) : '');
   const [kind, setKind] = useState(confirmed.deadline?.kind || 'hard');
-  const [minutes, setMinutes] = useState('effort' in confirmed ? confirmed.effort?.minutes ?? '' : record.candidates?.effortMinutes ?? ''), [scope, setScope] = useState(confirmed.effort?.scope || 'next_session');
+  const [minutes, setMinutes] = useState('effort' in confirmed ? confirmed.effort?.minutes ?? '' : record.candidates?.effortMinutes ?? record.baseline ?? ''), [scope, setScope] = useState(confirmed.effort?.scope || 'next_session');
   const [importance, setImportance] = useState(confirmed.importance || task.importance.level);
   const [dependencies, setDependencies] = useState(confirmed.dependsOn || task.dependsOn);
   const [again, setAgain] = useState(false), [saving, setSaving] = useState(false), [error, setError] = useState('');
