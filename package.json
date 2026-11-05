@@ -1,6 +1,6 @@
 {
   "name": "agent-summarize-planning",
-  "version": "0.4.0-rc.1",
+  "version": "0.4.0-rc.2",
   "description": "A learning-focused React, Node.js, and Electron calendar app with reminders, journals, and AI planning drafts.",
   "main": "electron/main.cjs",
   "type": "module",
@@ -24,7 +24,7 @@
     "build:desktop": "pnpm build && electron-builder --config electron-builder.yml",
     "release:check": "pnpm quality:check && pnpm lint && pnpm test && pnpm eval && pnpm build",
     "setup:env": "node scripts/setup-env.cjs",
-    "test:server": "node --test tests/*.test.cjs",
+    "test:server": "node --test --test-timeout=60000 tests/*.test.cjs",
     "backup:db": "node scripts/backup.cjs",
     "smoke:desktop": "node scripts/smoke-desktop.cjs",
     "smoke:web": "node scripts/smoke-web.cjs",
