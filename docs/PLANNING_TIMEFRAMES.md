@@ -1,5 +1,9 @@
 # Planning timeframes and source tasks — 0.4.0 release candidate
 
+## Release correction: 0.4.0-rc.2
+
+The first tag's macOS validation exposed profile re-entry failures when a workspace is reached through an operating-system path alias, such as /var versus /private/var. The gateway now compares canonical roots and rejects redirected profile directories. Synthetic regressions cover account re-entry/restore through an alias and rejection of both profile and profiles-root redirects. Server tests have a bounded timeout so a failed prerequisite cannot stall the release job indefinitely. Candidate 0.4.0-rc.2 supersedes the unpublished rc.1 draft; prior local acceptance below records rc.1 history.
+
 ## Lifecycle and responsibilities
 
 The updated path is authorized source content → source-backed task suggestions → customer ownership/fact review → accepted profile-owned tasks → scoped effort estimate → deterministic draft within working hours → review and Apply → optional measured-effort feedback.

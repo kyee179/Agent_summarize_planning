@@ -20,6 +20,7 @@ function createProfileGateway({ dataFile, apiToken, allowedOrigins = [], buildAp
   const root = path.dirname(path.resolve(dataFile)), profilesRoot = path.join(root, 'profiles');
   const now = () => Date.parse(clock());
   const registry = createRegistry(path.join(root, 'accounts.sqlite'), { clock: now });
+  const canonicalProfilesRoot = path.join(fs.realpathSync(root), 'profiles');
   const configFile = path.join(root, 'hosted-auth.json');
   let config = null, configError = false, active = null, session = null, generation = 0, restoring = null, closed = false;
   try {
@@ -36,7 +37,10 @@ function createProfileGateway({ dataFile, apiToken, allowedOrigins = [], buildAp
     if (!/^[0-9a-f-]{36}$/i.test(profile.id)) throw invalid('Invalid profile.');
     const directory = path.resolve(profilesRoot, profile.id);
     if (!directory.startsWith(path.resolve(profilesRoot) + path.sep)) throw invalid('Invalid profile path.');
-    if (fs.existsSync(directory) && !fs.realpathSync(directory).startsWith(path.resolve(profilesRoot) + path.sep)) throw invalid('Profile storage must remain inside this device workspace.');
+    // Resolve both sides: macOS /var and /private/var can name the same root.
+    // Nested links must still not redirect a profile into other storage.
+    if ((fs.lstatSync(profilesRoot, { throwIfNoEntry: false }) && fs.realpathSync(profilesRoot) !== canonicalProfilesRoot)
+      || (fs.lstatSync(directory, { throwIfNoEntry: false }) && fs.realpathSync(directory) !== path.join(canonicalProfilesRoot, profile.id))) throw invalid('Profile storage must remain inside this device workspace.');
     return path.join(directory, 'calendar.sqlite');
   }
   function assertActive(context, allowExpiredToken = false) {

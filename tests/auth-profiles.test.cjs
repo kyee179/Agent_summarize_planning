@@ -17,7 +17,9 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 
 const { hostedFixture } = require('./fixtures/hosted-auth.cjs');
 async function fixture(t, options = {}) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'calendar-auth-')), hosted = options.hosted || hostedFixture();
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'calendar-auth-')), hosted = options.hosted || hostedFixture();
+  const directory = options.aliasRoot ? path.join(fixtureRoot, 'alias') : fixtureRoot;
+  if (options.aliasRoot) { const actual = path.join(fixtureRoot, 'actual'); fs.mkdirSync(actual); fs.symlinkSync(actual, directory, process.platform === 'win32' ? 'junction' : 'dir'); }
   let saved = null;
   const vault = { available: () => true, read: () => saved, write: value => { saved = structuredClone(value); }, clear: () => { saved = null; } };
   let gateway, server, base, token = null;
@@ -27,7 +29,7 @@ async function fixture(t, options = {}) {
   server = gateway.app.listen(0, '127.0.0.1'); await once(server, 'listening');
   base = 'http://127.0.0.1:' + server.address().port; token = null; }
   await start();
-  t.after(async () => { await new Promise(resolve => server.close(resolve)); gateway.close(); fs.rmSync(directory, { recursive: true, force: true }); });
+  t.after(async () => { gateway.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); fs.rmSync(fixtureRoot, { recursive: true, force: true }); });
   async function call(route, body, explicitToken = token, method = body ? 'POST' : 'GET') {
     const response = await fetch(base + route, { method, headers: { Authorization: 'Bearer ' + apiToken, 'content-type': 'application/json', ...(explicitToken ? { 'x-calendar-session': explicitToken } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
     const next = response.headers.get('x-calendar-session'); if (next !== null) token = next || null;
@@ -223,4 +225,32 @@ test('only publishable hosted configuration is accepted and the encrypted vault 
     const vault = createPrivateVault({ file, safeStorage, platform: 'win32' }); vault.write({ refreshToken: 'synthetic-refresh-private' });
     assert.equal(fs.readFileSync(file).includes('synthetic-refresh-private'), false); assert.equal(vault.read().refreshToken, 'synthetic-refresh-private'); vault.clear(); assert.equal(vault.read(), null);
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a filesystem alias of the workspace supports account re-entry and remembered restore', async t => {
+  const f = await fixture(t, { aliasRoot: true });
+  const initial = await f.login('a@example.test', true); assert.equal(initial.status, 200, JSON.stringify(initial.body));
+  const journal = await f.call('/api/journals', { type: 'daily', journalDate: '2030-01-07', title: 'Alias', content: 'Invented alias-root journal.' });
+  assert.equal(journal.status, 201);
+  await f.call('/api/auth/logout', {});
+  const again = await f.login('a@example.test', true); assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.equal(again.body.session.id, initial.body.session.id);
+  await f.restart(); const restored = await f.call('/api/auth/restore', {});
+  assert.equal(restored.status, 200, JSON.stringify(restored.body));
+  assert.equal((await f.call('/api/journals')).body[0].id, journal.body.id);
+});
+
+for (const linkedDirectory of ['profile', 'profiles-root']) test(`an aliased workspace rejects a redirected ${linkedDirectory}`, async t => {
+  const f = await fixture(t, { aliasRoot: true });
+  const account = await f.login(); assert.equal(account.status, 200);
+  await f.call('/api/auth/logout', {});
+  const profiles = path.join(f.directory, 'profiles');
+  const original = linkedDirectory === 'profile' ? path.join(profiles, account.body.session.id) : profiles;
+  const elsewhere = path.join(f.directory, 'redirected-storage');
+  fs.renameSync(original, elsewhere);
+  fs.symlinkSync(elsewhere, original, process.platform === 'win32' ? 'junction' : 'dir');
+  const file = path.join(elsewhere, linkedDirectory === 'profile' ? 'calendar.sqlite' : account.body.session.id + '/calendar.sqlite');
+  const before = fs.readFileSync(file);
+  const rejected = await f.login(); assert.equal(rejected.status, 400); assert.match(rejected.body.error, /inside this device workspace/);
+  assert.deepEqual(fs.readFileSync(file), before);
 });
