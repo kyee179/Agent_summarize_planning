@@ -86,10 +86,20 @@ async function validate(executable, reportFile) {
       const route='/api/journals/'+journal.id+'/apply-drafts', input={analysisId:analysis.id};
       if((await call(route,input)).status!==201||(await call(route,input)).body.replayed!==true)throw new Error('Apply replay');
       const tasks=(await call('/api/tasks')).body; if(!tasks[0]?.sessionEventIds.length)throw new Error('Task linkage');
+      const source=(await call('/api/task-sources',{consent:true,kind:'email',externalId:'packaged-invented-mail',text:'Please revise the three charts.'})).body;
+      const discovery=(await call('/api/task-sources/'+encodeURIComponent(source.id)+'/discover',{allowAI:false})).body;
+      if(discovery.candidates.length!==1)throw new Error('Packaged task discovery');const candidate=discovery.candidates[0];
+      const accepted=(await call('/api/task-candidates/'+encodeURIComponent(candidate.id)+'/review',{state:'accepted',revision:candidate.revision})).body;
+      await call('/api/tasks/'+encodeURIComponent(accepted.taskId),{revision:1,effort:{minutes:60,scope:'remaining_task'},useEstimatedEffort:true,estimateScope:'remaining_task',estimateFeatures:{category:'review',unit:'chart',quantity:3,revise_or_create:'revise',complexity:2,familiarity:3}},'PUT');
+      const sourcePlan=(await call('/api/task-plans',{taskIds:[accepted.taskId],targetDate:'2030-01-07'})).body;
+      if(sourcePlan.contract.schemaVersion!==2||sourcePlan.contract.plan.blocks.length!==1)throw new Error('Packaged source-only plan');
+      const sourceApply='/api/task-plans/'+encodeURIComponent(sourcePlan.id)+'/apply';await call(sourceApply,{});if(!(await call(sourceApply,{})).body.replayed)throw new Error('Packaged source Apply replay');
+      await call('/api/tasks/'+encodeURIComponent(accepted.taskId)+'/effort',{planId:sourcePlan.id,receipt:'packaged-invented-outcome',actualMinutes:90,completed:true});
+      const timing=(await call('/api/account/export')).body.outcomes;if(!timing?.[0]?.features.complete||timing[0].features.quantity!==3||!timing[0].estimatedAt)throw new Error('Packaged training-data export');
       await call('/api/memory',{title:'Synthetic memory',content:'火星接口发布核验'});
       if((await call('/api/memory/search',{query:'火星接口'})).body.items.length!==1)throw new Error('Packaged CJK retrieval');
       const status=await window.studyCalendar.setupStatus(); if(status.secureStorage){await window.studyCalendar.saveSetup({AI_PROVIDER:'local',GLM_API_KEY:'synthetic-package-private-key'});window.dispatchEvent(new Event('calendar:auth-changed'));await new Promise(resolve=>setTimeout(resolve,100));await until(()=>document.querySelector('.primary-nav'),'Setup reload');}
-      return {journalId:journal.id,secureStorage:status.secureStorage,taskCount:tasks.length};})()`);
+      return {journalId:journal.id,secureStorage:status.secureStorage,taskCount:(await call('/api/tasks')).body.length,sourceTaskPipeline:true,reviewedOutcomes:timing.length};})()`);
     const restarted = await runApp(executable, path.join(directory, 'fresh'), `(async()=>{${setup}
       const journals=(await call('/api/journals')).body;if(journals.length!==1||journals[0].content!=='我需要完成项目报告。今天检查了ＡＰＩ接口。😀')throw new Error('Restart persistence');
       const analysis=(await call('/api/journals/'+journals[0].id+'/analyze',{targetDate:'2030-01-07'})).body;if(analysis.scheduleDrafts.length)throw new Error('Duplicate planning after restart');
@@ -105,7 +115,7 @@ async function validate(executable, reportFile) {
     const db = new DatabaseSync(legacyFile); db.exec('DROP TABLE task_plans; DROP TABLE effort_records; DROP TABLE task_candidates; DROP TABLE task_sources; DROP TABLE source_items; DROP TABLE task_sessions; DROP TABLE task_analyses; DROP TABLE durable_tasks; DROP TABLE reminder_receipts; PRAGMA user_version=2; DELETE FROM memory_fts;');db.close();
     const migration = await runApp(executable, legacy, `(async()=>{${setup}const journals=(await call('/api/journals')).body;if(journals[0]?.content!=='合成旧版日记保留。')throw new Error('Migration lost text');if((await call('/api/memory/search',{query:'火星接口'})).body.items.length!==1)throw new Error('Migration lost search');return {journalPreserved:true,searchPreserved:true};})()`);
     const snapshot = fs.readdirSync(legacy).find(file=>file.includes('.before-v2-'));assert.ok(snapshot,'Pre-migration snapshot missing');assert.equal(recovery.inspectDatabase(path.join(legacy,snapshot),2).version,2);assert.equal(recovery.inspectDatabase(legacyFile).version,4);
-    const report={schemaVersion:1,platform:process.platform,validatedAt:new Date().toISOString(),executable:path.basename(executable),...audit,fresh:{secureStorage:fresh.secureStorage,taskCount:fresh.taskCount},restarted,migration,integrity,backupRestore:'passed',preMigrationSnapshot:'verified-v2',limits:['Synthetic local data only','Hosted service deferred','Native IME and notification delivery require manual acceptance','No clean-machine or other-OS claim']};
+    const report={schemaVersion:1,platform:process.platform,validatedAt:new Date().toISOString(),executable:path.basename(executable),...audit,fresh:{secureStorage:fresh.secureStorage,taskCount:fresh.taskCount,sourceTaskPipeline:fresh.sourceTaskPipeline,reviewedOutcomes:fresh.reviewedOutcomes},restarted,migration,integrity,backupRestore:'passed',preMigrationSnapshot:'verified-v2',limits:['Synthetic local data only','Hosted service deferred','Native IME and notification delivery require manual acceptance','No clean-machine or other-OS claim']};
     fs.mkdirSync(path.dirname(reportFile),{recursive:true});fs.writeFileSync(reportFile,JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));return report;
   } finally { assert.ok(directory.startsWith(path.join(os.tmpdir(),'calendar-package-validation-')));fs.rmSync(directory,{recursive:true,force:true}); }
 }
