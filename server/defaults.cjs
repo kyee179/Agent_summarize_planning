@@ -6,6 +6,8 @@ const defaultData = {
     defaultNotifyMinutesBefore: 15,
     aiProvider: "glm",
     dailyAiRequestLimit: 10,
+    planningLeadMinutes: 5,
+    workingCalendar: require('./workingCalendar.cjs').preset(),
     defaultAvailability: [
       { label: "Evening focus", startsAt: "20:00", endsAt: "24:00" }
     ]
@@ -33,7 +35,7 @@ const defaultData = {
 
 function ensureShape(data) {
   return {
-    settings: { ...defaultData.settings, ...(data.settings || {}) },
+    settings: { ...defaultData.settings, ...(data.settings || {}), ...(!data.settings?.workingCalendar && data.settings?.defaultAvailability ? {workingCalendar:null} : {}) },
     events: Array.isArray(data.events) ? data.events : [],
     journals: Array.isArray(data.journals) ? data.journals : [],
     journalAnalyses: Array.isArray(data.journalAnalyses) ? data.journalAnalyses : []

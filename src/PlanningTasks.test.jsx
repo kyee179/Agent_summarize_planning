@@ -9,7 +9,7 @@ describe("planning review", () => {
     const analysis = localRuleBasedAnalysis({ journal: { id: "j", journalDate: "2026-10-11", content: "I need to finish the project." }, availability: [] });
     const html = renderToStaticMarkup(<PlanningTasks analysis={analysis} />);
     expect(html).toContain("Deadline unknown");
-    expect(html).toContain("90 min expected (45–180 min range)");
+    expect(html).toContain("90 min planning estimate (45–180 min range)");
     expect(html).toContain("local heuristic");
     expect(html).toContain("source matched");
     expect(html).toContain("Unscheduled work");

@@ -31,21 +31,21 @@ const streams = {
   browser: [{ timestamp: selectedRange.from, duration: 1800, data: { url: 'https://example.com/private/path?token=SECRET#secret', title: 'SECRET PAGE' } }],
   afk: [{ timestamp: selectedRange.from, duration: 1200, data: { status: 'not-afk' } }]
 };
-test('SQLite v1 migrates atomically to v2, preserves records, and rejects future versions', (t) => {
+test('SQLite v1 migrates atomically to v3, preserves records, and rejects future versions', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'integration-migration-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 'test.sqlite'); let store = createStore(file);
   store.createJournal({ id: 'kept', content: 'Synthetic note' }); store.close();
   let db = new DatabaseSync(file);
-  db.exec('DROP TABLE memory_fts; DROP TABLE memory_chunks; DROP TABLE memory_documents; DROP TABLE integration_state; DROP TABLE activity; DROP TABLE google_busy; PRAGMA user_version=1;'); db.close();
+  db.exec('DROP TABLE IF EXISTS task_plans; DROP TABLE IF EXISTS effort_records; DROP TABLE IF EXISTS task_candidates; DROP TABLE IF EXISTS task_sources; DROP TABLE IF EXISTS source_items; DROP TABLE memory_fts; DROP TABLE memory_chunks; DROP TABLE memory_documents; DROP TABLE integration_state; DROP TABLE activity; DROP TABLE google_busy; PRAGMA user_version=1;'); db.close();
   store = createStore(file); assert.equal(store.getJournal('kept').content, 'Synthetic note'); assert.deepEqual(store.memoryChunks(), []); store.close();
-  db = new DatabaseSync(file); assert.equal(db.prepare('PRAGMA user_version').get().user_version, 2); db.exec('PRAGMA user_version=3'); db.close();
+  db = new DatabaseSync(file); assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4); db.exec('PRAGMA user_version=5'); db.close();
   assert.throws(() => createStore(file), /newer app/);
 });
 test('a failed v1 migration rolls back its version and every newly created table', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'integration-rollback-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 'test.sqlite'), original = createStore(file); original.close();
   const db = new DatabaseSync(file);
-  db.exec('DROP TABLE memory_fts; DROP TABLE memory_chunks; DROP TABLE memory_documents; DROP TABLE integration_state; DROP TABLE activity; DROP TABLE google_busy; PRAGMA user_version=1; CREATE TABLE memory_documents(id TEXT PRIMARY KEY);'); db.close();
+  db.exec('DROP TABLE IF EXISTS task_plans; DROP TABLE IF EXISTS effort_records; DROP TABLE IF EXISTS task_candidates; DROP TABLE IF EXISTS task_sources; DROP TABLE IF EXISTS source_items; DROP TABLE memory_fts; DROP TABLE memory_chunks; DROP TABLE memory_documents; DROP TABLE integration_state; DROP TABLE activity; DROP TABLE google_busy; PRAGMA user_version=1; CREATE TABLE memory_documents(id TEXT PRIMARY KEY);'); db.close();
   assert.throws(() => createStore(file), /already exists/);
   const restored = new DatabaseSync(file); assert.equal(restored.prepare('PRAGMA user_version').get().user_version, 1);
   assert.equal(restored.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name='integration_state'").get().n, 0); restored.close();
@@ -303,7 +303,7 @@ test('Google occupancy revisions and expired coverage reject Apply without a rec
   store.setIntegrationState('googleTokens', { synthetic: true });
   store.replaceGoogleBusy([], { ...selectedRange, calendarIds: ['synthetic'], syncedAt });
   const analysis = { ...scheduleAnalysis(localRuleBasedAnalysis({ ...ctx, availability: ctx.expectedPlan.availability }), { events: store.listPlanningEvents(selectedRange), settings: ctx.settings, availabilitySource: 'request' }), id: 'analysis', journalId: 'j' };
-  store.updateSettings({ timezone: 'UTC' }); store.saveJournalAnalysis(analysis);
+  store.updateSettings({ timezone: 'UTC', workingCalendar:null }); store.saveJournalAnalysis(analysis);
   const before = store.listEvents().length;
   store.replaceGoogleBusy([{ id: 'google:synthetic', startsAt: '2030-01-01T09:00:00Z', endsAt: '2030-01-01T10:00:00Z', repeat: 'none' }], { ...selectedRange, calendarIds: ['synthetic'], syncedAt });
   assert.throws(() => store.applyAnalysis('j', 'analysis', (candidate) => { assertScheduleCurrent(candidate, store.listPlanningEvents(planningRange(candidate.contract.plan)), store.getSettings()); return []; }), /Calendar availability changed/);

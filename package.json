@@ -1,6 +1,6 @@
 {
   "name": "agent-summarize-planning",
-  "version": "0.3.0",
+  "version": "0.4.0-rc.1",
   "description": "A learning-focused React, Node.js, and Electron calendar app with reminders, journals, and AI planning drafts.",
   "main": "electron/main.cjs",
   "type": "module",
@@ -31,10 +31,15 @@
     "schemas:export": "node scripts/export-schemas.cjs",
     "eval": "node scripts/evaluate.cjs",
     "eval:live": "node scripts/evaluate.cjs --live",
+    "eval:chinese:live": "node scripts/evaluate.cjs --live-zh",
     "smoke:retrieval:live": "node scripts/smoke-retrieval-live.cjs",
     "quality:check": "node scripts/quality-check.cjs",
     "restore:db": "node scripts/restore.cjs",
-    "monitor": "node scripts/monitor.cjs"
+    "monitor": "node scripts/monitor.cjs",
+    "smoke:auth": "node scripts/smoke-desktop.cjs --auth",
+    "validate:package": "node scripts/validate-package.cjs",
+    "release:checksums": "node scripts/release-checksums.cjs",
+    "eval:effort": "python evaluation/effort/train.py --synthetic --mechanics-only"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -44,7 +49,8 @@
     "express": "latest",
     "lucide-react": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "@supabase/supabase-js": "2.118.0"
   },
   "devDependencies": {
     "@eslint/js": "latest",

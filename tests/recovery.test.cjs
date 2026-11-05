@@ -7,7 +7,7 @@ const { DatabaseSync } = require('node:sqlite');
 const { createStore } = require('../server/store.cjs');
 const { copyDatabase, inspectDatabase } = require('../server/recovery.cjs');
 function directory(t) { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'calendar-recovery-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true })); return dir; }
-function downgrade(db) { db.exec('DROP TABLE memory_fts; DROP TABLE memory_chunks; DROP TABLE memory_documents; DROP TABLE integration_state; DROP TABLE activity; DROP TABLE google_busy; PRAGMA user_version=1;'); }
+function downgrade(db) { db.exec('DROP TABLE IF EXISTS task_plans; DROP TABLE IF EXISTS effort_records; DROP TABLE IF EXISTS task_candidates; DROP TABLE IF EXISTS task_sources; DROP TABLE IF EXISTS source_items; DROP TABLE memory_fts; DROP TABLE memory_chunks; DROP TABLE memory_documents; DROP TABLE integration_state; DROP TABLE activity; DROP TABLE google_busy; PRAGMA user_version=1;'); }
 
 test('backup includes live committed WAL, restores to a new path, and preserves source and previous destination', async (t) => {
   let store; t.after(() => store?.close());

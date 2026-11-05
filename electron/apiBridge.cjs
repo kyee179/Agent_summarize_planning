@@ -4,9 +4,20 @@ function isAllowedRequest(route, method) {
   if (typeof route !== "string" || route.length > 4096) return false;
   const url = new URL(route, "http://127.0.0.1");
   if (url.origin !== "http://127.0.0.1" || url.hash || !route.startsWith("/api/")) return false;
+  if (/^\/api\/(?:task-sources|task-candidates|task-plans|work-capture|gmail)(?:\/[^/?]+){0,2}$/.test(url.pathname) && ['GET','POST','DELETE'].includes(method)) return true;
+  if (/^\/api\/tasks\/task(?:%3A|:)[0-9a-f-]{36}\/effort$/i.test(url.pathname) && method==='POST') return true;
+  if (/^\/api\/journals\/[^/]+\/replan$/.test(url.pathname) && method==='POST') return true;
   const base = /^\/api\/(time|settings|events|journals)$/.test(url.pathname);
   const item = /^\/api\/(events|journals)\/[^/]+$/.test(url.pathname);
   const action = /^\/api\/journals\/[^/]+\/(analysis|analyze|apply-drafts)$/.test(url.pathname);
+  if (/^\/api\/auth\/(login|signup|confirm|resend|reset-request|recover|configure|local|logout|restore)$/.test(url.pathname)) return method === 'POST';
+  if (url.pathname === '/api/auth/status') return method === 'GET';
+  if (/^\/api\/account\/(onboarding|import-local|remove-local-data)$/.test(url.pathname)) return method === 'POST';
+  if (/^\/api\/account\/(status|export)$/.test(url.pathname)) return method === 'GET';
+  if (url.pathname === '/api/account/services') return ['GET', 'POST'].includes(method);
+  if (url.pathname === '/api/tasks' && method === 'GET') return true;
+  if (/^\/api\/tasks\/task(?:%3A|:)[0-9a-f-]{36}$/i.test(url.pathname) && method === 'PUT') return true;
+  if (url.pathname === '/api/reminders/claim' && method === 'POST') return true;
   const integrationRoutes = {
     '/api/diagnostics': ['GET'], '/api/integrations/activity/desktop/start': ['POST'], '/api/integrations/activity/desktop/stop': ['POST'], '/api/integrations/google/quick-sync': ['POST'], '/api/integrations/status': ['GET'], '/api/integrations/activity/buckets': ['GET'], '/api/integrations/activity/import': ['POST'],
     '/api/integrations/activity': ['DELETE'], '/api/integrations/google/connect': ['POST'], '/api/integrations/google/cancel': ['POST'],

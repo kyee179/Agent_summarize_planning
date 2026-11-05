@@ -1,21 +1,21 @@
 {
   "schemaVersion": 1,
-  "appVersion": "0.3.0",
-  "maxDatabaseSchema": 2,
-  "contractVersion": 1,
-  "promptVersion": "1.2.0",
-  "policyHash": "36d8ed237dd94469559eaf697573a39c14cf3327b1375f75e2519f76b6670768",
-  "datasetVersion": "1.0.0",
+  "appVersion": "0.4.0-rc.1",
+  "maxDatabaseSchema": 4,
+  "contractVersion": 2,
+  "promptVersion": "1.4.0",
+  "policyHash": "4b6a4a309d071c42823818759c37faae3d8a6c279b7f31bb4c1702ea2608acf8",
+  "datasetVersion": "1.3.0",
   "skills": {
     "daily-summary": {
       "version": "1.1.0",
       "sha256": "0e279035df06c7a6c36fae6cf8ba777f816c7b3e52d0887f9def4036d1ae5acb"
     },
     "task-planning": {
-      "version": "1.1.0",
-      "sha256": "8bde845bc51a4b395acecec2bc089fad09cca10b35646b4d1a9bec75198d7a5b"
+      "version": "1.2.0",
+      "sha256": "25ef8e18225bfffbcee8e4606455a83ed302fb2e4c5c1850f136cdff46014cb7"
     }
   },
-  "datasetHash": "f7433636aedc445fbf67ad866cb932dd49428406491cf16aad7113728f8fccae",
-  "metricVersion": "2.0.0"
+  "datasetHash": "9618b2a7b51a325996583c9ca0216917e54b851e9e35ecc919b2ad4806b13f5a",
+  "metricVersion": "4.0.0"
 }

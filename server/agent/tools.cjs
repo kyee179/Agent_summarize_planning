@@ -45,7 +45,8 @@ function createToolSession(context, provider, model) {
       if (!read) return "read_evidence with offset 0 and limit 20";
       if (context.provider === 'glm' && seen.size < evidence.length) return `read_evidence with offset ${evidence.findIndex((item) => !seen.has(item.id))} and limit 20 to read the remaining source sentences`;
       if (!inspected) return "get_planning_context with an empty argument object";
-      if (!preview) return "preview_plan with a complete proposal matching its argument schema. Preserve source action phrases in task titles. In compact mode use a string importance and effortMinutes array or null. With one journal the workflow supplies partial weekly context; do not emit weekly fields absent from the schema. Cite actual read IDs. Available read IDs: " + JSON.stringify([...seen].slice(0, 8));
+      if (!preview && context.provider === 'glm' && !wireSchema(context).properties.tasks) return 'preview_plan with only summary, summaryEvidenceIds and optional cautions. All source work is explicitly negated/completed/conditional; the schema omits tasks, so do not emit a tasks field. Cite actual read IDs: ' + JSON.stringify([...seen].slice(0, 8));
+      if (!preview) return "preview_plan with a complete proposal matching its argument schema. Preserve source action phrases in task titles. If all source work is negated/completed/conditional, use tasks: [] (do not create placeholder tasks). In compact mode use a string importance and effortMinutes array or null (never an array of nulls). With one journal the workflow supplies partial weekly context; do not emit weekly fields absent from the schema. Cite actual read IDs. Available read IDs: " + JSON.stringify([...seen].slice(0, 8));
       return `finish_analysis with previewId ${preview.previewId}; you may revise through preview_plan first`;
     },
     invalidatePreview() { preview = null; },
@@ -74,7 +75,7 @@ function createToolSession(context, provider, model) {
           const added = [];
           for (const item of result.evidence || []) {
             assertSchema("evidence", item);
-            if (evidence.length >= 100) break;
+            if (evidence.length >= 92) break;
             if (evidence.some((e) => e.id === item.id)) continue;
             evidence.push(structuredClone(item)); seen.add(item.id); added.push(item);
           }
@@ -86,7 +87,11 @@ function createToolSession(context, provider, model) {
         }).catch(() => problem("/tool", "Search unavailable; continue with existing evidence"));
       }
       if (name === "read_evidence") {
-        const items = evidence.slice(args.offset, args.offset + args.limit);
+        const items = [];
+        for (const item of evidence.slice(args.offset, args.offset + args.limit)) {
+          if (Buffer.byteLength(JSON.stringify([...items, item])) > 60000) break;
+          items.push(item);
+        }
         items.forEach((item) => seen.add(item.id)); read = true;
         const nextOffset = args.offset + items.length < evidence.length ? args.offset + items.length : null;
         return { output: { evidence: items, total: evidence.length, nextOffset } };
@@ -102,7 +107,7 @@ function createToolSession(context, provider, model) {
       if (name === "preview_plan") {
         // A failed revision invalidates the previous preview: never finish a stale candidate.
         preview = null;
-        const proposal = context.provider === "glm" ? expandProposal(args.proposal) : args.proposal;
+        const proposal = context.provider === "glm" ? expandProposal(args.proposal, context) : args.proposal;
         assertSchema("proposal", proposal);
         const selectedId = context.journal.id || "input-journal-0";
         for (const id of proposal.summaryEvidenceIds) {
@@ -114,6 +119,12 @@ function createToolSession(context, provider, model) {
           ...proposal.tasks.flatMap((task) => [...task.evidenceIds, ...task.importance.evidenceIds, ...(task.deadline?.evidenceIds || [])]),
           ...proposal.estimates.flatMap((estimate) => estimate.evidenceIds)];
         if (refs.some((id) => !seen.has(id))) problem("/evidenceIds", "References must come from evidence read during this workflow");
+        for (const [index, task] of proposal.tasks.entries()) {
+          const sources = task.evidenceIds.map(id => evidence.find(item => item.id === id)).filter(Boolean);
+          if (sources.length && sources.every(item => item.sourceType === 'journal' && require('../language.cjs').explicitNonAction(item.excerpt))) {
+            throw new ContractError([{ path: `/tasks/${index}/evidenceIds`, code: 'source_action', message: 'Cited source contains only explicit negated, completed or conditional work; omit this task.' }]);
+          }
+        }
         const contract = { schemaVersion: 1, evidence, tasks: proposal.tasks, estimates: proposal.estimates,
           plan: { ...plan, unscheduled: proposal.tasks.map((task) => ({ taskId: task.id, reason: "needs_clarification", explanation: "Awaiting deterministic allocation" })) } };
         assertBundle(contract, { trustedEvidence: evidence, expectedPlan });

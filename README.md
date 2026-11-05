@@ -1,5 +1,11 @@
 # Agent Summarization and Planning Calendar
 
+Download and first-run instructions: [Download and install](docs/DOWNLOAD_AND_INSTALL.md). A Windows x64 test installer has been validated locally; no GitHub Release is published yet. See [additional release validation](docs/RELEASE_VALIDATION.md) for packaged/installed checks and the remaining public-release gates.
+
+Hosted email/password accounts, local workspace isolation, offline access and first-run setup are explained in [docs/LOGIN_ONBOARDING.md](docs/LOGIN_ONBOARDING.md). The Supabase integration can be configured after installation; journals remain on this device.
+
+Release hardening for journal request safety, planning lead time, evidence coverage, Chinese search, persistent tasks, confirmed facts, durable reminders and secure desktop setup is explained in [docs/RELEASE_HARDENING.md](docs/RELEASE_HARDENING.md).
+
 This repository develops the personal planning agent from the existing [Calendar App](https://github.com/kyee179/Calendar_App) (MIT, starting commit `335b8f0`). Read [PROJECT_BRIEF.md](PROJECT_BRIEF.md) for the agreed product requirements and [docs/STEP_01.md](docs/STEP_01.md) for the complete first-stage code walkthrough, verification, and remaining engineering work.
 
 Stage 1 adds authenticated local API access, a trusted Electron IPC bridge, explicit environment loading, SQLite with one-time JSON migration, online backup, and atomic/idempotent draft application. The current implementation also includes versioned contracts, deterministic scheduling, versioned skills, bounded tool calling, authorized ActivityWatch ingestion, Google Calendar read-only OAuth, local hybrid personal retrieval, and cited web research. Read [docs/STEP_05.md](docs/STEP_05.md) for setup, the code walkthrough, verification, and remaining quality evaluation work.

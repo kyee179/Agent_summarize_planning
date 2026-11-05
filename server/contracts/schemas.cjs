@@ -96,7 +96,7 @@ const definitions = {
       name: { enum: ["daily-summary", "task-planning"] }, version: text(32), sha256: { type: "string", pattern: "^[a-f0-9]{64}$" }
     }) },
     outcome: { enum: ["completed", "local", "fallback"] },
-    stopReason: { enum: ["finished", "local_provider", "missing_credentials", "unsupported_provider", "validation", "provider_error", "timeout", "turn_limit", "tool_limit", "error_limit", "size_limit"] },
+    stopReason: { enum: ["finished", "local_provider", "missing_credentials", "unsupported_provider", "validation", "provider_error", "cancelled", "timeout", "turn_limit", "tool_limit", "error_limit", "size_limit"] },
     turns: { type: "integer", minimum: 0, maximum: 12 }, toolCalls: { type: "integer", minimum: 0, maximum: 16 },
     toolErrors: { type: "integer", minimum: 0, maximum: 3 },
     elapsedMs: { type: "integer", minimum: 0 },
@@ -119,4 +119,5 @@ const definitions = {
 const schemas = Object.fromEntries(Object.entries(definitions).map(([name, definition]) => [name, {
   $schema: "http://json-schema.org/draft-07/schema#", $id: `${base}${name}.json`, title: `Calendar ${name} v1`, ...definition
 }]));
+const v2=structuredClone(schemas.bundle);v2.$id=base.replace('/v1/','/v2/')+'bundle.json';v2.title='Calendar bundle v2';v2.properties.schemaVersion={const:2};schemas.bundleV2=v2;
 module.exports = { schemas };

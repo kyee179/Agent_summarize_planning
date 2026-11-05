@@ -9,9 +9,8 @@ const LIMITS = Object.freeze({ maxTurns: 12, maxToolCalls: 16, maxToolErrors: 3,
   timeoutMs: 60000, requestTimeoutMs: 30000, maxOutputTokens: 4096,
   maxArgumentBytes: 65536, maxToolResultBytes: 98304, maxResponseBytes: 262144,
   maxTranscriptBytes: 524288, maxRequestBytes: 786432, maxTotalRequestBytes: 3145728 });
-class WorkflowError extends Error {
-  constructor(reason) { super("Agent workflow stopped"); this.reason = reason; }
-}
+const { WorkflowError } = require('./runtimeError.cjs');
+const { cancellable } = require('./cancellation.cjs');
 const bytes = (value) => Buffer.byteLength(typeof value === "string" ? value : JSON.stringify(value));
 const sizeCheck = (value, limit) => { if (bytes(value) > limit) throw new WorkflowError("size_limit"); };
 
@@ -23,15 +22,15 @@ function workflowMetadata(skills, promptHash, stats, outcome, stopReason, refs =
     summaryEvidenceIds: refs.summaryEvidenceIds || [], weeklySummaryEvidenceIds: refs.weeklySummaryEvidenceIds || [], trace: stats.trace };
 }
 
-async function boundedRequest(adapter, encoded, limits, remaining) {
+async function boundedRequest(adapter, encoded, limits, remaining, signal) {
   const controller = new AbortController();
   let timer;
   try {
     // Race enforces the wall-clock limit even for a transport that ignores abort.
-    return await Promise.race([
+    return await cancellable(Promise.race([
       adapter.complete(encoded, { signal: controller.signal, maxResponseBytes: limits.maxResponseBytes }),
       new Promise((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new WorkflowError("timeout")); }, Math.min(remaining, limits.requestTimeoutMs)); })
-    ]);
+    ]), signal, () => controller.abort());
   } finally { clearTimeout(timer); }
 }
 
@@ -59,6 +58,7 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
   };
   try {
     while (stats.turns < limits.maxTurns) {
+      if (context.signal?.aborted) throw new WorkflowError("cancelled");
       remaining(); sizeCheck(messages, limits.maxTranscriptBytes);
       const encoded = adapter.encode(messages, context.provider === "glm" ? session.availableTools() : tools, limits);
       sizeCheck(encoded.body, limits.maxRequestBytes);
@@ -66,7 +66,7 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
       if (stats.requestBytes + requestSize > limits.maxTotalRequestBytes) throw new WorkflowError("size_limit");
       stats.requestBytes += requestSize; stats.turns++;
       const response = await observed('provider', { provider: context.provider, turn: stats.turns, requestBytes: requestSize },
-        () => boundedRequest(adapter, encoded, limits, remaining()));
+        () => boundedRequest(adapter, encoded, limits, remaining(), context.signal));
       remaining(); sizeCheck(response, limits.maxResponseBytes);
       if (response.needsContinuation && response.calls?.length === 0) {
         // GLM supports auto tool selection. Discard prose; allow bounded protocol repair.
@@ -93,8 +93,8 @@ async function runWorkflow(context, adapter, skills, { limits = LIMITS, now = ()
         const controller = new AbortController(); let toolTimer;
         try {
           result = await observed('tool', { tool: tools.some((tool) => tool.name === call.name) ? call.name : 'unknown', turn: stats.turns },
-            () => Promise.race([Promise.resolve().then(() => session.execute(call.name, args, controller.signal)),
-            new Promise((_, reject) => { toolTimer = setTimeout(() => { controller.abort(); reject(new WorkflowError("timeout")); }, remaining()); })]));
+            () => cancellable(Promise.race([Promise.resolve().then(() => session.execute(call.name, args, controller.signal)),
+            new Promise((_, reject) => { toolTimer = setTimeout(() => { controller.abort(); reject(new WorkflowError("timeout")); }, remaining()); })]), context.signal, () => controller.abort()));
         } finally { clearTimeout(toolTimer); }
         sizeCheck(result.output, limits.maxToolResultBytes);
         stats.trace.push({ turn: stats.turns, tool: tools.some((tool) => tool.name === call.name) ? call.name : "unknown", status: "ok" });

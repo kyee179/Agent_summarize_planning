@@ -1,3 +1,5 @@
+const taskStorage = require('./tasks.cjs');
+const { scheduleAnalysis } = require('./scheduler.cjs');
 const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync, backup } = require("node:sqlite");
@@ -11,7 +13,7 @@ function conflict(message) {
   return Object.assign(new Error(message), { status: 409 });
 }
 
-function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), "calendar.json") } = {}) {
+function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), "calendar.json"), profileId = 'local', seedDemo = true } = {}) {
   if (filePath !== ":memory:") fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const db = new DatabaseSync(filePath, { timeout: 5000 });
   try {
@@ -67,13 +69,28 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
 
   const extra = integrationStorage.attach(db, transaction, (id) => parse(db.prepare("SELECT data FROM journals WHERE id=?").get(id)));
 
+  const taskStore = taskStorage.attach(db, transaction, profileId);
+  const portable = require('./auth/portable.cjs').attach(db, transaction, profileId);
+
   try {
     // Acquire the writer lock before reading the version: two app processes may start together.
     transaction(() => {
       const version = db.prepare("PRAGMA user_version").get().user_version;
-      if (version > 2) throw new Error("Database was created by a newer app; refusing to downgrade.");
-      if (version === 2) return;
-      if (version === 1) { integrationStorage.migrate(db); return; }
+      if (version > MAX_SCHEMA) throw new Error("Database was created by a newer app; refusing to downgrade.");
+      if (version === 4) return;
+      if (version === 3) { require("./migrationV4.cjs").migrate(db); return; }
+      if (version >= 1) {
+        if (version === 1) integrationStorage.migrate(db);
+        taskStorage.migrate(db);
+        require("./migrationV4.cjs").migrate(db);
+        const { indexedText } = require('./integrations/searchText.cjs');
+        db.exec('DELETE FROM memory_fts');
+        for (const row of db.prepare('SELECT data FROM memory_chunks').all()) {
+          const chunk = JSON.parse(row.data);
+          db.prepare('INSERT INTO memory_fts VALUES(?,?,?)').run(chunk.id, indexedText(chunk.title), indexedText(chunk.content));
+        }
+        return;
+      }
       db.exec(`
         CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK(id=1), data TEXT NOT NULL CHECK(json_valid(data)));
         CREATE TABLE events (id TEXT PRIMARY KEY, starts_at INTEGER NOT NULL, ends_at INTEGER NOT NULL,
@@ -87,9 +104,11 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
         CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       `);
       integrationStorage.migrate(db);
+      taskStorage.migrate(db);
+      require("./migrationV4.cjs").migrate(db);
       // Import with the schema in one transaction; preserve the original JSON.
       const imported = filePath !== ":memory:" && fs.existsSync(legacyFile);
-      const data = ensureShape(imported ? JSON.parse(fs.readFileSync(legacyFile, "utf8")) : defaultData);
+      const data = ensureShape(imported ? JSON.parse(fs.readFileSync(legacyFile, "utf8")) : seedDemo ? defaultData : { settings: { aiProvider: 'local' }, events: [], journals: [], journalAnalyses: [] });
       db.prepare("INSERT INTO settings VALUES(1, ?)").run(JSON.stringify(data.settings));
       data.events.forEach(putEvent);
       data.journals.forEach(putJournal);
@@ -104,10 +123,14 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
 
   const store = {
     ...extra,
+    ...taskStore,
+    ...portable,
+    ...require('./sourceTasks.cjs').attach(db, transaction, profileId, () => store),
     getSettings: () => parse(db.prepare("SELECT data FROM settings WHERE id=1").get()),
     updateSettings(patch) {
       return transaction(() => {
-        const settings = { ...store.getSettings(), ...patch };
+        const settings = { ...store.getSettings(), ...(patch.defaultAvailability !== undefined && patch.workingCalendar === undefined ? {workingCalendar:null} : {}), ...patch };
+        if(settings.workingCalendar) settings.workingCalendar=require('./workingCalendar.cjs').validate(settings.workingCalendar);
         db.prepare("UPDATE settings SET data=? WHERE id=1").run(JSON.stringify(settings));
         return settings;
       });
@@ -157,7 +180,17 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
         return db.prepare("DELETE FROM journals WHERE id=?").run(id).changes > 0;
       });
     },
-    saveJournalAnalysis: (analysis) => transaction(() => putAnalysis(analysis)),
+    saveJournalAnalysis: (analysis) => transaction(() => {
+      if (!analysis.contract) return putAnalysis(analysis);
+      assertAnalysis(analysis);
+      if (analysis.taskRevisions) taskStore.assertTasksCurrent(analysis);
+      // Check occupancy/source freshness before changing task identities, under the same writer lock.
+      assertEvidenceCurrent(analysis.contract, store.getJournal);
+      if (analysis.scheduling) assertScheduleCurrent(analysis, planningEvents(planningRange(analysis.contract.plan)), store.getSettings());
+      const resolved = taskStore.reconcileTasks(analysis);
+      return putAnalysis(scheduleAnalysis(resolved, { events: planningEvents(planningRange(resolved.contract.plan)), settings: store.getSettings(),
+        notBefore: analysis.scheduling?.notBefore ?? null, availabilitySource: analysis.scheduling?.availabilitySource || 'request' }));
+    }),
     getJournalAnalysis: (id) => parse(db.prepare("SELECT data FROM analyses WHERE journal_id=?").get(id)),
     getAppliedBatch: (id) => parse(db.prepare("SELECT data FROM applied_batches WHERE analysis_id=?").get(id)),
     applyAnalysis(journalId, analysisId, buildEvents) {
@@ -173,8 +206,10 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
           extra.assertSupplementalEvidence(analysis.contract);
           extra.assertCalendarCoverage(planningRange(analysis.contract.plan));
         }
+        taskStore.assertTasksCurrent(analysis);
         const events = buildEvents(analysis);
         events.forEach(putEvent);
+        taskStore.linkTaskSessions(analysis, events);
         const result = { analysisId, journalId, events, appliedAt: new Date().toISOString() };
         db.prepare("INSERT INTO applied_batches VALUES(?, ?, ?)").run(analysisId, journalId, JSON.stringify(result));
         return { ...result, replayed: false };
@@ -184,7 +219,7 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
       const version = db.prepare('PRAGMA user_version').get().user_version;
       const settings = db.prepare('SELECT data FROM settings WHERE id=1').get();
       if (!settings || !JSON.parse(settings.data)) throw new Error('Settings unavailable');
-      for (const table of ['events', 'journals', 'analyses', 'applied_batches', 'integration_state', 'activity', 'google_busy', 'memory_documents', 'memory_chunks', 'memory_fts']) {
+      for (const table of ['events', 'journals', 'analyses', 'applied_batches', 'integration_state', 'activity', 'google_busy', 'memory_documents', 'memory_chunks', 'memory_fts', 'durable_tasks', 'task_analyses', 'task_sessions', 'reminder_receipts']) {
         db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
       }
       return { ready: version === MAX_SCHEMA, schemaVersion: version };

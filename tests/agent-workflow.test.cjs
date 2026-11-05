@@ -38,9 +38,9 @@ function happy(ctx) { return [call("read_evidence", { offset: 0, limit: 20 }), c
 
 test("skills are pinned, layered, and hashed without placing source text in instructions", () => {
   const skills = loadSkills(), ctx = context();
-  assert.deepEqual(skills.skills.map((item) => [item.name, item.version]), [["daily-summary", "1.1.0"], ["task-planning", "1.1.0"]]);
+  assert.deepEqual(skills.skills.map((item) => [item.name, item.version]), [["daily-summary", "1.1.0"], ["task-planning", "1.2.0"]]);
   const first = buildMessages(skills, ctx, LIMITS);
-  assert.match(first.messages[0].content, /Workflow policy v1.2.0/);
+  assert.match(first.messages[0].content, /Workflow policy v1.4.0/);
   assert.match(first.messages[0].content, /# Role and goal/);
   assert.ok(!JSON.stringify(first.messages).includes(input.journal.content));
   assert.equal(first.promptHash, buildMessages(skills, { ...ctx, journal: { ...ctx.journal, content: "Different" } }, LIMITS).promptHash);
@@ -137,6 +137,14 @@ test("per-request timeout cancels a stalled provider even when it ignores the ab
   adapter.complete = async (_encoded, options) => { signal = options.signal; return new Promise(() => {}); };
   const run = await runWorkflow(context(), adapter, loadSkills(), { limits: { ...LIMITS, requestTimeoutMs: 20 } });
   assert.equal(run.metadata.stopReason, "timeout"); assert.equal(signal.aborted, true);
+});
+
+test('closing a profile interrupts a provider that ignores cancellation and records an allowlisted stop reason', async () => {
+  const controller = new AbortController(), adapter = scriptAdapter([]); let providerSignal;
+  adapter.complete = async (_encoded, options) => { providerSignal = options.signal; queueMicrotask(() => controller.abort()); return new Promise(() => {}); };
+  const result = await runWorkflow(context({ signal: controller.signal }), adapter, loadSkills());
+  assert.equal(result.metadata.stopReason, 'cancelled'); assert.equal(providerSignal.aborted, true);
+  assertSchema('agentWorkflow', result.metadata); assert.equal(result.analysis, undefined);
 });
 
 test("total elapsed time, oversized arguments/results/transcripts/requests, and total outgoing bytes are bounded", async () => {

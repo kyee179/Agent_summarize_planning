@@ -32,7 +32,8 @@ function eventTimes(event, timezone) {
   }
   throw error('Google returned an unsupported event time; no partial calendar cache was saved', 502);
 }
-function createGoogle(store, { fetchImpl, env = process.env, clock = () => new Date().toISOString() } = {}) {
+function createGoogle(store, { scopeList = SCOPES, connectionName = "Google Calendar", fetchImpl, env = process.env, clock = () => new Date().toISOString() } = {}) {
+  const scopes = scopeList;
   let pending = null, exchanging = null, generation = 0, refreshPromise = null, syncing = false, connecting = false, lastOAuth = null;
   const configured = () => Boolean(env.GOOGLE_CLIENT_ID && Buffer.from(env.INTEGRATION_ENCRYPTION_KEY || '', 'base64').length === 32);
   function cancel() {
@@ -49,7 +50,7 @@ function createGoogle(store, { fetchImpl, env = process.env, clock = () => new D
     if (generation !== expectedGeneration) throw error('Google connection was cancelled', 409);
     if (typeof data.access_token !== 'string' || !data.access_token || !Number.isFinite(data.expires_in) || data.expires_in <= 0 || data.expires_in > 86400) throw error('Invalid Google token response', 502);
     const granted = String(data.scope || old?.scope || '').split(' ');
-    if (!SCOPES.every((scope) => granted.includes(scope))) throw error('Both read-only Calendar permissions are required; reconnect', 409);
+    if (!scopes.every((scope) => granted.includes(scope))) throw error('Required read-only permissions are missing; reconnect', 409);
     const tokens = { access_token: data.access_token, refresh_token: data.refresh_token || old?.refresh_token || null,
       expiresAt: Date.parse(clock()) + data.expires_in * 1000, scope: granted.join(' ') };
     if (!old) store.connectGoogle(vault(env).seal(tokens), crypto.randomUUID());
@@ -87,8 +88,8 @@ function createGoogle(store, { fetchImpl, env = process.env, clock = () => new D
     .map((item) => ({ id: item.id, name: String(item.summary || item.id).slice(0, 300), timezone: item.timeZone || null, primary: item.primary === true }));
   return {
     status: () => ({ configured: configured(), connected: Boolean(store.integrationState('googleTokens')), pending: Boolean(pending || exchanging), lastOAuth,
-      sync: store.integrationState('googleSync'), scopes: SCOPES }),
-    cancel, close: cancel, calendars,
+      sync: store.integrationState('googleSync'), scopes: scopes }),
+    cancel, close: cancel, calendars, getAccessToken: accessToken,
     async connect(input) {
       if (input.consent !== true) throw error('Google connection requires explicit consent');
       if (!configured()) throw error('Configure GOOGLE_CLIENT_ID and run pnpm setup:env, then restart', 409);
@@ -112,7 +113,7 @@ function createGoogle(store, { fetchImpl, env = process.env, clock = () => new D
           if (callback.searchParams.has('error') || callback.searchParams.getAll('code').length !== 1 || !code || code.length > 4096) throw error('Authorization declined', 400);
           saveToken(await tokenRequest({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: redirect }), null, current);
           if (generation !== current) throw error('Cancelled', 409);
-          lastOAuth = 'connected'; res.end('Google Calendar connected. Return to the app and refresh connection status.');
+          lastOAuth = 'connected'; res.end(connectionName + ' connected. Return to the app and refresh connection status.');
         } catch { if (generation === current) lastOAuth = 'failed'; res.writeHead(400); res.end('Connection failed or declined. Return to the app and reconnect.'); }
         finally { if (exchanging?.generation === current) exchanging = null; server.close(); }
       });
@@ -124,7 +125,7 @@ function createGoogle(store, { fetchImpl, env = process.env, clock = () => new D
       redirect = `http://127.0.0.1:${server.address().port}/oauth/callback`;
       const timer = setTimeout(() => { if (pending?.generation === current) { lastOAuth = 'expired'; cancel(); } }, 300000); timer.unref();
       pending = { generation: current, server, timer };
-      const params = new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, redirect_uri: redirect, response_type: 'code', scope: SCOPES.join(' '),
+      const params = new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, redirect_uri: redirect, response_type: 'code', scope: scopes.join(' '),
         state, code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256', access_type: 'offline', prompt: 'consent' });
       return { authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?${params}`, expiresAt: new Date(Date.parse(clock()) + 300000).toISOString() };
     },

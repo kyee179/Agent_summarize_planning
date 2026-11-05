@@ -41,7 +41,7 @@ test("exported JSON schemas match the runtime source of truth", () => {
 
 test("shape validation rejects unknown fields, coercion, unsupported versions and impossible dates", () => {
   const bundle = sample().contract;
-  assert.throws(() => assertSchema("bundle", { ...bundle, schemaVersion: 2 }), ContractError);
+  assert.throws(() => assertSchema("bundle", { ...bundle, schemaVersion: 3 }), ContractError);
   assert.throws(() => assertSchema("bundle", { ...bundle, extra: true }), ContractError);
   rejects((b) => { b.estimates[0].effortMinutes.expected = "90"; }, /integer/);
   rejects((b) => { b.plan.targetDate = "2026-02-30"; }, /format/);
@@ -174,11 +174,11 @@ test("store rejects a corrupt projection or stale source before replacing an ana
   try {
     store.createJournal(journal);
     const analysis = { ...sample(), id: "a", journalId: journal.id };
-    store.saveJournalAnalysis(analysis);
+    const saved = store.saveJournalAnalysis(analysis);
     const corrupt = structuredClone(analysis);
     corrupt.tasks[0].estimatedMinutes = 1;
     assert.throws(() => store.saveJournalAnalysis(corrupt), ContractError);
-    assert.deepEqual(store.getJournalAnalysis(journal.id), analysis);
+    assert.deepEqual(store.getJournalAnalysis(journal.id), saved);
     store.updateJournal(journal.id, { content: "Changed source" });
     assert.throws(() => store.saveJournalAnalysis(analysis), /Source evidence changed/);
     assert.equal(store.getJournalAnalysis(journal.id), null);

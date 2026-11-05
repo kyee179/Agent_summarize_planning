@@ -1,0 +1,57 @@
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { AuthGate } from './features/AuthGate.jsx';
+import { api } from './api.js';
+vi.mock('./api.js', async original => { const source = await original(); return { ...source, invalidateRequests: vi.fn(), api: Object.fromEntries(Object.keys(source.api).map(key => [key, vi.fn()])) }; });
+vi.mock('./App.jsx', () => ({ default: ({ account, onSignOut }) => <div><h1>{account.session.name} workspace</h1><button onClick={onSignOut}>Sign out</button></div> }));
+const welcome = { provider: { configured: true }, secureStorage: true, localProfiles: [{ id: 'local', name: 'Local workspace', hasData: true }], session: null };
+const active = { ...welcome, session: { id: 'a', name: 'Reader', kind: 'account', email: 'a@example.test', onboardingComplete: false }, preferences: { timezone: 'UTC', aiProvider: 'local', defaultAvailability: [{ startsAt: '09:00', endsAt: '17:00' }] }, setup: { secureStorage: true, configured: {} } };
+beforeEach(() => { vi.resetAllMocks(); api.authStatus.mockResolvedValue(welcome); });
+afterEach(cleanup);
+it('allows offline onboarding when hosted sign-in is not configured, keeps optional sources off and persists the choices', async () => {
+  api.authStatus.mockResolvedValue({ ...welcome, provider: { configured: false } });
+  const local = { ...active, session: { ...active.session, id: 'local', kind: 'local' } }; api.continueLocal.mockResolvedValue(local);
+  api.finishOnboarding.mockResolvedValue({ ...local, session: { ...local.session, onboardingComplete: true } });
+  render(<AuthGate />); await screen.findByRole('heading', { name: 'Welcome back' });
+  expect(screen.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Continue offline' }));
+  await screen.findByRole('heading', { name: 'Make room for your day' });
+  fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: 'Asia/Shanghai' } });
+  fireEvent.submit(document.querySelector('form')); await screen.findByRole('heading', { name: 'Choose how to prepare plans' });
+  expect(screen.getByLabelText('Planning service')).toHaveValue('local');
+  fireEvent.submit(document.querySelector('form')); await screen.findByRole('heading', { name: 'A workspace that belongs to you' });
+  expect(screen.queryByRole('checkbox', { name: /Copy my local/ })).not.toBeInTheDocument();
+  fireEvent.submit(document.querySelector('form')); await screen.findByRole('heading', { name: 'Reader workspace' });
+  expect(api.finishOnboarding).toHaveBeenCalledWith(expect.objectContaining({ timezone: 'Asia/Shanghai', aiProvider: 'local', planningLeadMinutes: 5 }));
+  expect(api.importLocal).not.toHaveBeenCalled();
+});
+it('clears passwords after failed sign-in, prevents IME submission and remounts the workspace after signing out', async () => {
+  api.signIn.mockRejectedValueOnce(new Error('Check your password')).mockResolvedValueOnce({ ...active, session: { ...active.session, onboardingComplete: true } }); api.signOut.mockResolvedValue({ signedOut: true });
+  render(<AuthGate />); await screen.findByRole('heading', { name: 'Welcome back' });
+  fireEvent.change(screen.getByLabelText('Email', { exact: true }), { target: { value: 'a@example.test' } });
+  fireEvent.change(screen.getByLabelText('Password', { exact: true }), { target: { value: 'first-password' } });
+  fireEvent.compositionStart(document.querySelector('form')); fireEvent.submit(document.querySelector('form')); expect(api.signIn).not.toHaveBeenCalled(); fireEvent.compositionEnd(document.querySelector('form'));
+  fireEvent.submit(document.querySelector('form')); await screen.findByRole('alert'); expect(screen.getByLabelText('Password', { exact: true })).toHaveValue('');
+  fireEvent.change(screen.getByLabelText('Password', { exact: true }), { target: { value: 'correct-password-123' } });
+  fireEvent.submit(document.querySelector('form')); await screen.findByRole('heading', { name: 'Reader workspace' });
+  fireEvent.click(screen.getByRole('button', { name: 'Sign out', exact: true })); await screen.findByRole('heading', { name: 'Welcome back' });
+  expect(screen.queryByRole('heading', { name: 'Reader workspace' })).not.toBeInTheDocument();
+});
+it('requires explicit selection to copy local data into a new signed-in account', async () => {
+  api.authStatus.mockResolvedValue(active); api.importLocal.mockResolvedValue({ originalPreserved: true }); api.finishOnboarding.mockResolvedValue({ ...active, session: { ...active.session, onboardingComplete: true } });
+  render(<AuthGate />); await screen.findByRole('heading', { name: 'Make room for your day' });
+  fireEvent.submit(document.querySelector('form')); await screen.findByRole('heading', { name: 'Choose how to prepare plans' });
+  fireEvent.submit(document.querySelector('form')); const choice = await screen.findByRole('checkbox', { name: /Copy my local/ }); expect(choice).not.toBeChecked();
+  fireEvent.click(choice); fireEvent.submit(document.querySelector('form')); await waitFor(() => expect(api.importLocal).toHaveBeenCalledWith('local')); await screen.findByRole('heading', { name: 'Reader workspace' });
+});
+it('supports signup confirmation and recovery without opening a workspace', async () => {
+  api.signUp.mockResolvedValue({ confirmationRequired: true, message: 'Check email' }); api.confirmEmail.mockResolvedValue({ message: 'Confirmed' }); api.requestPasswordReset.mockResolvedValue({ message: 'Check email' }); api.recoverPassword.mockResolvedValue({ message: 'Password updated' });
+  render(<AuthGate />); fireEvent.click(await screen.findByRole('button', { name: 'Create account', exact: true }));
+  fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Reader' } }); fireEvent.change(screen.getByLabelText('Email', { exact: true }), { target: { value: 'a@example.test' } });
+  fireEvent.change(screen.getByLabelText('Password', { exact: true }), { target: { value: 'correct-password-123' } }); fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'correct-password-123' } }); fireEvent.submit(document.querySelector('form'));
+  await screen.findByRole('heading', { name: 'Confirm your email' }); fireEvent.change(screen.getByLabelText('Email verification code'), { target: { value: '12345678' } }); fireEvent.submit(document.querySelector('form'));
+  await screen.findByRole('heading', { name: 'Welcome back' }); fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' })); fireEvent.submit(document.querySelector('form'));
+  await screen.findByRole('heading', { name: 'Choose a new password' }); fireEvent.change(screen.getByLabelText('Email verification code'), { target: { value: '12345678' } });
+  fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password-123456' } }); fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'new-password-123456' } }); fireEvent.submit(document.querySelector('form'));
+  await screen.findByRole('heading', { name: 'Welcome back' }); expect(api.signIn).not.toHaveBeenCalled(); expect(api.recoverPassword).toHaveBeenCalledWith({ email: 'a@example.test', code: '12345678', password: 'new-password-123456' });
+});

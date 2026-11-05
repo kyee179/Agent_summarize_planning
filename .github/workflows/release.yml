@@ -45,19 +45,34 @@ jobs:
         run: |
           node scripts/prepare-linux-sandbox.cjs
           xvfb-run -a pnpm smoke:desktop
+          xvfb-run -a pnpm smoke:auth
 
       - name: Desktop smoke (Windows/macOS)
         if: runner.os != 'Linux'
-        run: pnpm smoke:desktop
+        run: |
+          pnpm smoke:desktop
+          pnpm smoke:auth
 
       - name: Build desktop app
         run: pnpm build:desktop --publish never
+
+      - name: Packaged Windows acceptance
+        if: runner.os == 'Windows'
+        run: pnpm validate:package "release/win-unpacked/Agent Planning Calendar.exe" evaluation/reports/packaged-windows.json
+
+      - name: Download checksums
+        run: pnpm release:checksums
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
           name: study-calendar-${{ matrix.os }}
-          path: release/**
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.zip
+            release/SHA256SUMS.txt
           retention-days: 30
 
       - name: Upload synthetic evaluation report

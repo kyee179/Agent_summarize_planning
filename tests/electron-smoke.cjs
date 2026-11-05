@@ -1,5 +1,6 @@
 const { app } = require("electron");
 const path = require("node:path");
+const fs = require('node:fs');
 app.setPath("userData", process.env.CALENDAR_SMOKE_DIRECTORY);
 app.setPath("sessionData", process.env.CALENDAR_SMOKE_DIRECTORY);
 app.disableHardwareAcceleration();
@@ -7,16 +8,53 @@ app.disableHardwareAcceleration();
 app.on("browser-window-created", (_event, window) => {
   window.webContents.once("did-finish-load", async () => {
     try {
+      window.webContents.setBackgroundThrottling(false);
+      const captureAuth = async (name, width = 1280) => {
+        window.setMinimumSize(320, 480); window.setContentSize(width, 840);
+        await window.webContents.executeJavaScript(`(async () => { window.scrollTo(0,0); await new Promise(resolve => setTimeout(resolve, 100)); if (document.documentElement.scrollWidth > innerWidth + 2) throw new Error('Auth screen overflows'); })()`);
+        if (process.env.CALENDAR_UI_CAPTURE_DIRECTORY) { fs.mkdirSync(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, { recursive: true }); fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, name + '.png'), (await window.webContents.capturePage()).toPNG()); }
+      };
+      await window.webContents.executeJavaScript(`(async () => {
+        for (let i = 0; i < 150 && !document.querySelector('.auth-card'); i++) await new Promise(resolve => setTimeout(resolve, 30));
+        if (!document.querySelector('.auth-card')) throw new Error('Welcome screen missing');
+        const locked = await window.studyCalendar.request('/api/events'); if (locked.status !== 401) throw new Error('Workspace opened before sign-in');
+        if (document.querySelector('nav')) throw new Error('Workspace visible while signed out');
+      })()`);
+      await captureAuth('welcome'); await captureAuth('welcome-mobile', 390); await captureAuth('welcome-minimum', 640);
+      await window.webContents.executeJavaScript(`(async () => {
+        Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Continue offline').click();
+        for (let i = 0; i < 150 && !document.querySelector('.onboarding-card'); i++) await new Promise(resolve => setTimeout(resolve, 30));
+        if (!document.querySelector('.onboarding-card')) throw new Error('Onboarding missing');
+      })()`);
+      await captureAuth('onboarding-routine'); await captureAuth('onboarding-mobile', 390);
+      for (const name of ['planning', 'workspace']) {
+        await window.webContents.executeJavaScript(`(async () => { document.querySelector('.onboarding-card form').requestSubmit(); await new Promise(resolve => setTimeout(resolve, 100)); })()`);
+        await captureAuth('onboarding-' + name);
+      }
+      await window.webContents.executeJavaScript(`(async () => {
+        if (document.querySelector('input[type="checkbox"]:checked')) throw new Error('Unexpected onboarding consent');
+        document.querySelector('.onboarding-card form').requestSubmit();
+        for (let i = 0; i < 150 && !document.querySelector('.primary-nav'); i++) await new Promise(resolve => setTimeout(resolve, 30));
+        if (!document.querySelector('.primary-nav')) throw new Error('Workspace did not open after onboarding');
+        for (let i = 0; i < 150 && document.querySelector('.workspace-loading'); i++) await new Promise(resolve => setTimeout(resolve, 30));
+      })()`);
+      window.setContentSize(1280, 840);
       const result = await window.webContents.executeJavaScript(`(async () => {
         if (typeof window.studyCalendar?.request !== 'function') throw new Error('Missing preload bridge');
         if ('apiToken' in window.studyCalendar || typeof window.require !== 'undefined') throw new Error('Renderer isolation failed');
+        const setup = await window.studyCalendar.setupStatus();
+        if (setup.secureStorage) {
+          await window.studyCalendar.saveSetup({ AI_PROVIDER: 'local', GLM_API_KEY: 'synthetic-desktop-credential' });
+          const saved = await window.studyCalendar.setupStatus();
+          if (!saved.configured.GLM_API_KEY || JSON.stringify(saved).includes('synthetic-desktop-credential')) throw new Error('Secure setup status leaked or lost a key');
+        }
         const call = window.studyCalendar.request;
         const response = await call('/api/journals', { method: 'POST', body: JSON.stringify({
           type: 'daily', journalDate: '2026-10-02', title: 'Smoke', content: 'I need to study the project tomorrow.'
         }) });
         if (response.status !== 201) throw new Error('Journal save failed');
         const journal = response.body;
-        await call('/api/settings', { method: 'PUT', body: JSON.stringify({timezone: 'UTC'}) });
+        await call('/api/settings', { method: 'PUT', body: JSON.stringify({timezone: 'UTC',workingCalendar:null}) });
         const meeting = await call('/api/events', { method: 'POST', body: JSON.stringify({
           title: 'Existing recurring commitment', startsAt: '2029-12-25T20:00:00Z', endsAt: '2029-12-25T21:00:00Z',
           calendarType: 'personal', repeat: 'weekly', notificationFormat: 'Desktop notification'
@@ -37,6 +75,10 @@ app.on("browser-window-created", (_event, window) => {
         const first = await call(route, { method: 'POST', body });
         const retry = await call(route, { method: 'POST', body });
         if (first.status !== 201 || retry.status !== 200 || !retry.body.replayed) throw new Error('Batch replay failed');
+        const tracked = await call('/api/tasks?journalId=' + journal.id);
+        if (tracked.status !== 200 || !tracked.body[0]?.sessionEventIds.length) throw new Error('Task session linkage failed');
+        const repeatPlan = await call('/api/journals/' + journal.id + '/analyze', { method: 'POST', body: JSON.stringify({ targetDate: '2030-01-01' }) });
+        if (repeatPlan.status !== 201 || repeatPlan.body.scheduleDrafts.length) throw new Error('Previously applied work was planned again');
         const events = await call('/api/events');
         if (events.body.filter(event => event.sourceAnalysisId === analysis.body.id).length !== first.body.events.length) throw new Error('Duplicate events');
         let rejected = false;
@@ -54,20 +96,121 @@ app.on("browser-window-created", (_event, window) => {
         const search = await call('/api/memory/search', { method: 'POST', body: JSON.stringify({ query: 'checklist' }) });
         if (search.status !== 200 || search.body.mode !== 'lexical' || search.body.items.length !== 1) throw new Error('Local memory retrieval failed');
         if ((await call('/api/memory/' + encodeURIComponent(note.body.id), { method: 'DELETE' })).status !== 204) throw new Error('Memory deletion IPC failed');
-        const journalTab = Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Journals');
-        journalTab.click();
-        for (let i = 0; i < 40 && !document.querySelector('[aria-label="Sources and connections"]'); i++) await new Promise(resolve => setTimeout(resolve, 50));
-        if (!document.querySelector('[aria-label="Sources and connections"]') || !document.body.textContent.includes('Sources permitted for this analysis')) throw new Error('Integration setup UI failed');
-        if (!document.body.textContent.includes('Connect Google Calendar') || !document.body.textContent.includes('Enable desktop activity')) throw new Error('One-button connection controls missing');
-        const healthPanel = document.querySelector('[aria-label="System health"]');
-        if (!healthPanel) throw new Error('Monitoring UI missing');
-        healthPanel.querySelector('button').click();
-        for (let i = 0; i < 40 && !healthPanel.textContent.includes('Database ready'); i++) await new Promise(resolve => setTimeout(resolve, 50));
-        if (!healthPanel.textContent.includes('Database ready')) throw new Error('Monitoring UI check failed');
+        const pause = () => new Promise(resolve => setTimeout(resolve, 50));
+        const until = async (condition, label) => { for (let i = 0; i < 150; i++) { if (condition()) return; await pause(); } throw new Error(label); };
+        const navigate = name => Array.from(document.querySelectorAll('nav button')).find(button => button.textContent === name).click();
+        navigate('Settings');
+        await until(() => document.querySelector('input[list="timezones"]'), 'Settings did not load');
+        const changeInput = (element, value) => { Object.getOwnPropertyDescriptor(element.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set.call(element, value); element.dispatchEvent(new Event('input', { bubbles: true })); };
+        changeInput(document.querySelector('input[list="timezones"]'), 'UTC');
+        Array.from(document.querySelector('.preferences-form').querySelectorAll('button')).find(button => button.textContent === 'Save settings').click();
+        await until(() => document.querySelector('.settings-save').textContent.includes('Settings saved.'), 'Settings UI save failed');
+        navigate('Journal');
+        await until(() => document.querySelector('.journal-textarea'), 'Journal editor missing');
+        changeInput(document.querySelector('.journal-title'), '合成日记：发布准备');
+        const chineseText = '我需要完成项目报告。今天检查了ＡＰＩ接口。😀';
+        changeInput(document.querySelector('.journal-textarea'), chineseText);
+        Array.from(document.querySelector('.journal-editor').querySelectorAll('button')).find(button => button.textContent === 'Save journal').click();
+        await until(() => document.querySelector('.journal-save-state').textContent.startsWith('Saved'), 'Journal UI save failed');
+        const unicodeJournal = (await call('/api/journals')).body.find(item => item.title === '合成日记：发布准备');
+        if (unicodeJournal?.content !== chineseText) throw new Error('Unicode journal save roundtrip failed');
+        const chineseAnalysis = await call('/api/journals/' + unicodeJournal.id + '/analyze', { method: 'POST', body: JSON.stringify({ targetDate: '2030-01-08' }) });
+        if (chineseAnalysis.status !== 201 || chineseAnalysis.body.outputLanguage !== 'zh-CN' || chineseAnalysis.body.contract.tasks.length !== 1 || !chineseAnalysis.body.summary.includes('项目报告')) throw new Error('Chinese IPC analysis failed');
+        const customize = document.querySelector('.journal-analysis-prompt button'); customize.click();
+        await until(() => document.querySelector('dialog[open]'), 'Analysis customization did not open');
+        const sheet = document.querySelector('dialog[open]');
+        if (sheet.querySelectorAll('[role="switch"]').length !== 3 || sheet.querySelector('[role="switch"]:checked')) throw new Error('Optional source defaults changed');
+        const dateInput = sheet.querySelector('input[type="date"]');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(dateInput, '2030-01-08');
+        dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+        Array.from(sheet.querySelectorAll('button')).find(button => button.textContent === 'Done').click();
+        navigate('Plan');
+        await until(() => document.querySelector('.plan-preparation'), 'Plan workspace did not open');
+        const generate = Array.from(document.querySelector('.plan-preparation').querySelectorAll('button')).find(button => button.textContent.includes('Generate'));
+        generate.click();
+        await until(() => Array.from(document.querySelectorAll('button')).some(button => button.textContent === 'Add all to local calendar' && !button.disabled), 'UI plan generation failed');
+        if (!document.querySelector('.timeline') || !document.querySelector('.proposed-block')) throw new Error('Calendar comparison missing');
+        if (!document.querySelector('.timeline').textContent.includes('Existing recurring commitment')) throw new Error('Recurring calendar comparison missing');
+        navigate('Connections');
+        await until(() => !document.querySelector('[aria-label="Sources and connections"]').parentElement.hidden, 'Connections page did not open');
+        const connections = document.querySelector('[aria-label="Sources and connections"]');
+        const recorderLabel = integrationStatus.body.desktopActivity.available ? 'Start recording' : 'Learn more';
+        if (!connections || !connections.textContent.includes(recorderLabel) || !connections.textContent.includes('Google Calendar')) throw new Error('Platform-appropriate connection controls missing');
+        const activity = (await call('/api/integrations/status')).body.desktopActivity;
+        if (activity.running) throw new Error('UI started activity recording without consent');
+        navigate('Settings');
+        document.querySelector('.settings-workspace > details').open = true;
+        const healthPanel = document.querySelector('[aria-label="System health"]'); healthPanel.querySelector('button').click();
+        await until(() => healthPanel.textContent.includes('Database ready'), 'Monitoring UI check failed');
+        navigate('Plan');
         return { events: first.body.events.length, pageRendered: document.querySelector('main') !== null };
       })()`);
       if (!result.pageRendered) throw new Error("React did not render");
-      console.log("Desktop smoke passed: scheduling, stale-calendar rejection, SQLite, IPC, batch replay, isolation, local memory, integration setup, tracing and monitoring UI.");
+      const credentialFile = path.join(process.env.CALENDAR_SMOKE_DIRECTORY, 'profile-credentials.encrypted');
+      if (fs.existsSync(credentialFile) && fs.readFileSync(credentialFile).includes('synthetic-desktop-credential')) throw new Error('Credentials were stored as plaintext');
+      if (process.env.CALENDAR_UI_CAPTURE_DIRECTORY) {
+        window.webContents.setBackgroundThrottling(false);
+        await window.webContents.executeJavaScript(`(() => { const style = document.createElement('style'); style.textContent = '*,*::before,*::after{transition:none!important;animation:none!important}'; document.head.append(style); })()`);
+        fs.mkdirSync(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, { recursive: true });
+        const capture = async (page, name, width = 1280) => {
+          window.setMinimumSize(320, 480); window.setContentSize(width, 840);
+          await window.webContents.executeJavaScript(`(async () => {
+            Array.from(document.querySelectorAll('nav button')).find(button => button.textContent === ${JSON.stringify(page)}).click();
+            for (let i=0; i<80 && document.querySelector('h1')?.textContent !== ${JSON.stringify(page)}; i++) await new Promise(resolve => setTimeout(resolve, 25));
+            document.querySelector('[aria-label="Dismiss message"]')?.click();
+            window.scrollTo(0,0);
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            await new Promise(resolve => setTimeout(resolve, 150));
+            const overflow = document.documentElement.scrollWidth > innerWidth + 2;
+            if (overflow) throw new Error('Horizontal overflow on ${name}');
+          })()`);
+          const screenshot = await window.webContents.capturePage();
+          fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, name + '.png'), screenshot.toPNG());
+        };
+        for (const page of ['Today', 'Calendar', 'Journal', 'Plan', 'Connections', 'Settings']) await capture(page, page.toLowerCase());
+        for (const page of ['Today', 'Journal', 'Plan', 'Connections']) await capture(page, 'mobile-' + page.toLowerCase(), 390);
+        await capture('Journal', 'journal');
+        await window.webContents.executeJavaScript(`document.querySelector('.journal-analysis-prompt button').click()`);
+        await new Promise(resolve => setTimeout(resolve, 150));
+        fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, 'analysis-options.png'), (await window.webContents.capturePage()).toPNG());
+        await window.webContents.executeJavaScript(`Array.from(document.querySelector('dialog').querySelectorAll('button')).find(button => button.textContent === 'Done').click()`);
+        await capture('Plan', 'plan');
+        await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'Confirm or edit facts').click()`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, 'task-facts.png'), (await window.webContents.capturePage()).toPNG());
+        await window.webContents.executeJavaScript(`document.querySelector('[aria-label="Close Confirm task facts"]').click()`);
+        await capture('Settings', 'settings');
+        await window.webContents.executeJavaScript(`Array.from(document.querySelectorAll('h2')).find(element => element.textContent === 'Set up your services').closest('section').scrollIntoView()`);
+        fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY, 'service-setup.png'), (await window.webContents.capturePage()).toPNG());
+      }
+      await window.webContents.executeJavaScript(`(async()=>{
+        const call=async(route,body,method=body?'POST':'GET')=>{const result=await window.studyCalendar.request(route,{method,...(body?{body:JSON.stringify(body)}:{})});if(result.status>=400)throw new Error('Source task IPC: '+route+' '+result.status);return result.body;};
+        await call('/api/settings',{timezone:'UTC',workingCalendar:{version:1,weekdays:[[],[{startsAt:'09:00',endsAt:'12:30'},{startsAt:'14:00',endsAt:'18:00'}],[],[],[],[],[]],exceptions:[]}},'PUT');
+        const source=await call('/api/task-sources',{consent:true,kind:'email',externalId:'desktop-invented-mail',text:'Please revise the three charts.'});
+        const found=await call('/api/task-sources/'+encodeURIComponent(source.id)+'/discover',{allowAI:false});
+        if(found.candidates.length!==1)throw new Error('Source-only discovery failed');const c=found.candidates[0];
+        const reviewed=await call('/api/task-candidates/'+encodeURIComponent(c.id)+'/review',{state:'accepted',revision:c.revision});
+        await call('/api/tasks/'+encodeURIComponent(reviewed.taskId),{revision:1,effort:{minutes:60,scope:'next_session'}},'PUT');
+        const plan=await call('/api/task-plans',{taskIds:[reviewed.taskId],targetDate:'2030-01-07'});
+        if(plan.contract.schemaVersion!==2||plan.contract.plan.blocks.length!==1)throw new Error('Source-only planning failed');
+        const route='/api/task-plans/'+encodeURIComponent(plan.id)+'/apply';await call(route,{});if(!(await call(route,{})).replayed)throw new Error('Source-only replay failed');
+        Array.from(document.querySelectorAll('nav button')).find(b=>b.textContent==='Tasks').click();
+        for(let i=0;i<100&&!document.querySelector('.source-workspace');i++)await new Promise(r=>setTimeout(r,30));
+        if(!document.querySelector('.source-workspace'))throw new Error('Task inbox did not render');
+      })()`);
+      if(process.env.CALENDAR_UI_CAPTURE_DIRECTORY){
+        for(const width of [1280,390]){window.setMinimumSize(320,480);window.setContentSize(width,840);await window.webContents.executeJavaScript('window.scrollTo(0,0)');await new Promise(r=>setTimeout(r,120));await window.webContents.executeJavaScript(`if(document.documentElement.scrollWidth>innerWidth+2)throw new Error('Task inbox horizontal overflow')`);fs.writeFileSync(path.join(process.env.CALENDAR_UI_CAPTURE_DIRECTORY,'task-inbox-'+width+'.png'),(await window.webContents.capturePage()).toPNG());}
+      }
+      await window.webContents.executeJavaScript(`document.querySelector('.account-button').click()`);
+      await new Promise(resolve => setTimeout(resolve, 100)); await captureAuth('account');
+      await window.webContents.executeJavaScript(`(async () => {
+        Array.from(document.querySelector('dialog').querySelectorAll('button')).find(button => button.textContent === 'Switch workspace').click();
+        const confirmation = document.querySelector('dialog[aria-label="Close this workspace?"]'); if (confirmation) Array.from(confirmation.querySelectorAll('button')).find(button => button.textContent === 'Close workspace').click();
+        for (let i = 0; i < 150 && !document.querySelector('.auth-card'); i++) await new Promise(resolve => setTimeout(resolve, 30));
+        if (!document.querySelector('.auth-card') || document.querySelector('nav')) throw new Error('Workspace did not clear after sign-out');
+        if ((await window.studyCalendar.request('/api/journals')).status !== 401) throw new Error('Signed-out data access allowed');
+      })()`);
+      console.log("Desktop smoke passed: locked welcome, offline onboarding, account switching, scheduling, stale-calendar rejection, SQLite, IPC, batch replay, isolation, local memory, integration setup, tracing and monitoring UI.");
       app.quit();
     } catch (error) {
       console.error(`Desktop smoke failed: ${error.message}`);

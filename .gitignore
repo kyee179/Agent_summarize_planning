@@ -21,3 +21,16 @@ server/data/
 
 /credentials.json
 /google_setup/
+**/credentials.encrypted*
+**/profile-credentials.encrypted*
+**/session.encrypted*
+**/hosted-auth.json*
+/profiles/
+/exports/
+
+/captures/
+/personal-models/
+/personal-outcomes/
+/evaluation/effort/.venv/
+**/__pycache__/
+/catboost_info/
