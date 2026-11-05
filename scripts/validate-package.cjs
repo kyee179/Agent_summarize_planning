@@ -18,8 +18,15 @@ async function auditPackage(executable) {
   const entries = asar.listPackage(archive).map(file => file.replaceAll('\\', '/').replace(/^\//, ''));
   const { privatePath } = require('./quality-check.cjs');
   assert.deepEqual(entries.filter(privatePath), [], 'Private paths in app package');
-  for (const file of ['dist/index.html', 'electron/main.cjs', 'electron/preload.cjs', 'electron/profileDirectory.cjs', 'server/auth/hosted.cjs', 'server/skills/registry.json', 'server/skills/prompts/1.3.0/policy.md', 'server/skills/daily-summary/1.1.0/SKILL.md', 'server/skills/task-planning/1.1.0/SKILL.md']) assert.ok(entries.includes(file), 'Missing packaged runtime file: ' + file);
+  for (const file of ['dist/index.html', 'electron/main.cjs', 'electron/preload.cjs', 'electron/profileDirectory.cjs', 'server/auth/hosted.cjs', 'server/sourceRoutes.cjs', 'server/sourceTasks.cjs', 'server/integrations/workCapture.cjs', 'server/skills/registry.json', 'server/skills/prompts/1.4.0/policy.md', 'server/skills/daily-summary/1.1.0/SKILL.md', 'server/skills/task-planning/1.2.0/SKILL.md']) assert.ok(entries.includes(file), 'Missing packaged runtime file: ' + file);
   assert.ok(fs.existsSync(archive + '.unpacked/server/integrations/windows-activity.ps1'), 'Missing external Windows helper');
+  const captureHelper=archive+'.unpacked/server/integrations/windows-work-content.ps1';
+  assert.ok(fs.existsSync(captureHelper),'Missing external work-content helper');
+  assert.equal(sha(fs.readFileSync(captureHelper)),sha(fs.readFileSync(path.join(root,'server/integrations/windows-work-content.ps1'))),'Work-content helper differs from reviewed source');
+  if(process.platform==='win32'){
+    const result=JSON.parse(require('node:child_process').execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',captureHelper,'-Mode','read','-SyntheticFixture'],{encoding:'utf8',windowsHide:true,timeout:20000}));
+    assert.equal(result.text,'Please revise the three synthetic charts.','Packaged native text capture failed');
+  }
   const runtime = {};
   for (const file of entries.filter(file => /^(electron|server|dist)\//.test(file))) {
     const stat = asar.statFile(archive, path.normalize(file)); if (stat.files || stat.link || stat.unpacked) continue;
@@ -97,7 +104,7 @@ async function validate(executable, reportFile) {
     store.createJournal({ id:'legacy',type:'daily',journalDate:'2030-01-07',title:'Synthetic older database',content:'合成旧版日记保留。',createdAt:'2030-01-07T00:00:00Z',updatedAt:'2030-01-07T00:00:00Z' }); store.putMemoryDocument({id:'legacy-note',title:'旧笔记',content:'火星接口旧版资料',updatedAt:'2030-01-07T00:00:00Z'});store.close();
     const db = new DatabaseSync(legacyFile); db.exec('DROP TABLE task_sessions; DROP TABLE task_analyses; DROP TABLE durable_tasks; DROP TABLE reminder_receipts; PRAGMA user_version=2; DELETE FROM memory_fts;');db.close();
     const migration = await runApp(executable, legacy, `(async()=>{${setup}const journals=(await call('/api/journals')).body;if(journals[0]?.content!=='合成旧版日记保留。')throw new Error('Migration lost text');if((await call('/api/memory/search',{query:'火星接口'})).body.items.length!==1)throw new Error('Migration lost search');return {journalPreserved:true,searchPreserved:true};})()`);
-    const snapshot = fs.readdirSync(legacy).find(file=>file.includes('.before-v2-'));assert.ok(snapshot,'Pre-migration snapshot missing');assert.equal(recovery.inspectDatabase(path.join(legacy,snapshot),2).version,2);assert.equal(recovery.inspectDatabase(legacyFile).version,3);
+    const snapshot = fs.readdirSync(legacy).find(file=>file.includes('.before-v2-'));assert.ok(snapshot,'Pre-migration snapshot missing');assert.equal(recovery.inspectDatabase(path.join(legacy,snapshot),2).version,2);assert.equal(recovery.inspectDatabase(legacyFile).version,4);
     const report={schemaVersion:1,platform:process.platform,validatedAt:new Date().toISOString(),executable:path.basename(executable),...audit,fresh:{secureStorage:fresh.secureStorage,taskCount:fresh.taskCount},restarted,migration,integrity,backupRestore:'passed',preMigrationSnapshot:'verified-v2',limits:['Synthetic local data only','Hosted service deferred','Native IME and notification delivery require manual acceptance','No clean-machine or other-OS claim']};
     fs.mkdirSync(path.dirname(reportFile),{recursive:true});fs.writeFileSync(reportFile,JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));return report;
   } finally { assert.ok(directory.startsWith(path.join(os.tmpdir(),'calendar-package-validation-')));fs.rmSync(directory,{recursive:true,force:true}); }

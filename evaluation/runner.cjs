@@ -11,7 +11,7 @@ const { createStore } = require('../server/store.cjs');
 const { createMemory, fuse } = require('../server/integrations/memory.cjs');
 const { loadSkills } = require('../server/agent/skills.cjs');
 const dataset = JSON.parse(fs.readFileSync(path.join(__dirname, 'dataset.v1.json'), 'utf8'));
-const METRIC_VERSION = '3.0.0';
+const METRIC_VERSION = '4.0.0';
 const defaultAvailability = [{ startsAt: '09:00', endsAt: '17:00' }];
 const stopWords = new Set(['a', 'an', 'the', 'my', 'your', 'our', 'their', 'his', 'her', 'to', 'for', 'of', 'on', 'in', 'at']);
 function normalizedWords(value) {
@@ -170,6 +170,8 @@ async function runEvaluation({ live = false, language = null, analyze = analyzeJ
       const scores=aggregate(rows.filter(row=>row.split==='gate'&&row.language===lang));report.analysis.byLanguage[lang]=scores;
       for(const metric of ['taskPrecision','taskRecall','summaryAnchorCoverage','validity','citationValidity','uncertaintySafety']) report.gates.push({metric:lang+':'+metric,value:scores[metric],minimum:dataset.gates[metric],passed:scores[metric]>=dataset.gates[metric]});
     }
+    report.timeframeMechanics=require('./timeframe-mechanics.cjs').run();
+    report.gates.push({metric:'timeframeMechanicsPassRate',value:report.timeframeMechanics.passRate,minimum:1,passed:report.timeframeMechanics.passRate===1});
     report.passed=report.gates.every(gate=>gate.passed);
   }
   return report;

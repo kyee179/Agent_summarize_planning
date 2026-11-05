@@ -27,3 +27,10 @@ server/data/
 **/hosted-auth.json*
 /profiles/
 /exports/
+
+/captures/
+/personal-models/
+/personal-outcomes/
+/evaluation/effort/.venv/
+**/__pycache__/
+/catboost_info/

@@ -4,6 +4,9 @@ function isAllowedRequest(route, method) {
   if (typeof route !== "string" || route.length > 4096) return false;
   const url = new URL(route, "http://127.0.0.1");
   if (url.origin !== "http://127.0.0.1" || url.hash || !route.startsWith("/api/")) return false;
+  if (/^\/api\/(?:task-sources|task-candidates|task-plans|work-capture|gmail)(?:\/[^/?]+){0,2}$/.test(url.pathname) && ['GET','POST','DELETE'].includes(method)) return true;
+  if (/^\/api\/tasks\/task(?:%3A|:)[0-9a-f-]{36}\/effort$/i.test(url.pathname) && method==='POST') return true;
+  if (/^\/api\/journals\/[^/]+\/replan$/.test(url.pathname) && method==='POST') return true;
   const base = /^\/api\/(time|settings|events|journals)$/.test(url.pathname);
   const item = /^\/api\/(events|journals)\/[^/]+$/.test(url.pathname);
   const action = /^\/api\/journals\/[^/]+\/(analysis|analyze|apply-drafts)$/.test(url.pathname);

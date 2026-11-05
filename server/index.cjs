@@ -139,6 +139,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
   });
 
   integrationRoutes(app, store, service, clock);
+  require('./sourceRoutes.cjs').mount(app,store,{clock,analyze,providerEnv,integrationOptions});
 
   app.get("/api/time", (_req, res) => {
     const now = new Date();
@@ -156,7 +157,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
   });
 
   app.put("/api/settings", (req, res) => {
-    const allowed = ["timezone", "locale", "weekStartsOn", "defaultNotifyMinutesBefore", "aiProvider", "dailyAiRequestLimit", "planningLeadMinutes", "defaultAvailability"];
+    const allowed = ["timezone", "locale", "weekStartsOn", "defaultNotifyMinutesBefore", "aiProvider", "dailyAiRequestLimit", "planningLeadMinutes", "defaultAvailability", "workingCalendar"];
     const patch = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
     if (patch.dailyAiRequestLimit !== undefined && (!Number.isInteger(patch.dailyAiRequestLimit) || patch.dailyAiRequestLimit < 1 || patch.dailyAiRequestLimit > 100)) return res.status(400).json({ error: 'Daily AI limit must be 1–100 requests' });
     if (patch.planningLeadMinutes !== undefined && (!Number.isInteger(patch.planningLeadMinutes) || patch.planningLeadMinutes < 1 || patch.planningLeadMinutes > 120)) return res.status(400).json({ error: 'Review time must be 1–120 minutes' });
@@ -167,6 +168,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
         availability: settings.defaultAvailability, blocks: [], unscheduled: [], warnings: []
       } });
     }
+    if(patch.workingCalendar !== undefined && patch.workingCalendar !== null) patch.workingCalendar=require('./workingCalendar.cjs').validate(patch.workingCalendar);
     const updated = store.updateSettings(patch);
     res.json({ ...updated, ...profileProviderConfig(updated), aiProviderConfigured: getConfiguredProviders(providerEnv) });
   });
@@ -301,7 +303,7 @@ function createApp({ store, apiToken, allowedOrigins = [], clock = () => new Dat
     const today = localParts(Date.parse(asOf), settings.timezone).date;
     // Historical journals inform future work. A request can explicitly select another date.
     const targetDate = req.body.targetDate !== undefined ? req.body.targetDate : journal.journalDate > today ? journal.journalDate : today;
-    const availability = req.body.availability !== undefined ? req.body.availability : settings.defaultAvailability;
+    const availability = require('./workingCalendar.cjs').resolve(settings, targetDate, req.body.availability);
     const inputPlan = { id: "input", state: "proposal", timezone: settings.timezone, targetDate, availability,
       bufferMinutes: 15, blocks: [], unscheduled: [], warnings: [] };
     assertSchema("plan", inputPlan);

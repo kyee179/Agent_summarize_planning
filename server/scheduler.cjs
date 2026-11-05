@@ -50,7 +50,7 @@ function calendarContext(plan, events) {
 }
 function settingsFingerprint(settings, availabilitySource) {
   const slots = settings.defaultAvailability || [];
-  return hash({ timezone: settings.timezone || "UTC", planningLeadMinutes: settings.planningLeadMinutes || 5, ...(availabilitySource === "settings" ? { availability:
+  return hash({ workingCalendar: settings.workingCalendar || null, timezone: settings.timezone || "UTC", planningLeadMinutes: settings.planningLeadMinutes || 5, ...(availabilitySource === "settings" ? { availability:
     slots.map(({ startsAt, endsAt }) => [startsAt, endsAt]).sort((a, b) => compareId(a.join("/"), b.join("/"))) } : {}) });
 }
 function inputBundle(bundle) {
@@ -125,7 +125,9 @@ function scheduleBundle(bundle, { events = [], notBefore = null } = {}) {
   return { contract: result, calendarFingerprint: context.calendarFingerprint };
 }
 function scheduleAnalysis(analysis, options = {}) {
-  const { contract, calendarFingerprint } = scheduleBundle(analysis.contract, options);
+  const input=structuredClone(analysis.contract);
+  if(options.settings?.workingCalendar) input.plan.availability=require('./workingCalendar.cjs').resolve(options.settings,input.plan.targetDate,input.plan.availability);
+  const { contract, calendarFingerprint } = scheduleBundle(input, options);
   const { contractAnalysis } = require("./contracts/analysis.cjs");
   const scheduling = { version: 1, algorithm: "greedy-v1", calendarFingerprint,
     settingsFingerprint: settingsFingerprint(options.settings || { timezone: contract.plan.timezone }, options.availabilitySource || "request"),
@@ -134,6 +136,11 @@ function scheduleAnalysis(analysis, options = {}) {
 }
 function assertScheduleCurrent(analysis, events, settings, now = null) {
   const conflict = (message) => { throw Object.assign(new Error(message), { status: 409 }); };
+  if (settings.workingCalendar) {
+    const allowed=require('./workingCalendar.cjs').resolve(settings,analysis.contract.plan.targetDate,analysis.contract.plan.availability);
+    const expected=scheduleBundle({...analysis.contract,plan:{...analysis.contract.plan,availability:allowed}},{events,notBefore:analysis.scheduling?.notBefore});
+    if(JSON.stringify(expected.contract.plan.blocks)!==JSON.stringify(analysis.contract.plan.blocks)) conflict('Working hours changed; generate and review a new plan');
+  }
   if (analysis.scheduling) {
     assertSchema("scheduling", analysis.scheduling);
     if (settingsFingerprint(settings, analysis.scheduling.availabilitySource) !== analysis.scheduling.settingsFingerprint) conflict("Planning settings changed; analyze again and review the new plan");

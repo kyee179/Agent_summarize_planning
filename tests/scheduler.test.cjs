@@ -209,6 +209,7 @@ test("independent processes apply competing plans under one writer lock; only on
   const file = path.join(directory, "calendar.sqlite");
   const settings = { timezone: "UTC", defaultAvailability: [{ startsAt: "20:00", endsAt: "24:00" }] };
   const store = createStore(file);
+  store.updateSettings({workingCalendar:null});
   try {
     store.updateSettings(settings);
     for (const id of ["j1", "j2"]) {

@@ -26,7 +26,8 @@ function buildMessages(skills, context, limits) {
     // Hash only instruction layers; never persist a hash of personal source text here.
     promptHash: hash(system),
     messages: [{ role: "system", content: system }, { role: "user", content: JSON.stringify({
-      request: "Summarize the selected journal and propose realistic follow-up work using the tools.",
+      request: context.discovery ? "Discover source-supported actionable tasks from the selected email/work-app/document content. Review ownership and quoted/cancelled work; do not invent tasks or deadlines." : "Summarize the selected journal and propose realistic follow-up work using the tools.",
+      discovery: context.discovery === true,
       selectedJournal: { id: context.journal.id || "input-journal-0", type: context.journal.type, journalDate: context.journal.journalDate },
       outputLanguage: context.outputLanguage || require('../language.cjs').outputLanguage(context.journal.content),
       sourceDatePolicy: 'Resolve relative dates from each source journal date and the planning timezone, never the target planning day. Unconfirmed deadlines remain null.',

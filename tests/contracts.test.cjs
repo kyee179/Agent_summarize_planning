@@ -41,7 +41,7 @@ test("exported JSON schemas match the runtime source of truth", () => {
 
 test("shape validation rejects unknown fields, coercion, unsupported versions and impossible dates", () => {
   const bundle = sample().contract;
-  assert.throws(() => assertSchema("bundle", { ...bundle, schemaVersion: 2 }), ContractError);
+  assert.throws(() => assertSchema("bundle", { ...bundle, schemaVersion: 3 }), ContractError);
   assert.throws(() => assertSchema("bundle", { ...bundle, extra: true }), ContractError);
   rejects((b) => { b.estimates[0].effortMinutes.expected = "90"; }, /integer/);
   rejects((b) => { b.plan.targetDate = "2026-02-30"; }, /format/);

@@ -33,7 +33,7 @@ class ContractError extends Error {
   }
 }
 function assertSchema(name, value) {
-  const validate = validators[name];
+  const validate = validators[name === 'bundle' && value?.schemaVersion === 2 ? 'bundleV2' : name];
   if (!validate) throw new Error(`Unknown schema: ${name}`);
   if (!validate(value)) throw new ContractError(validate.errors.map(({ instancePath, keyword, message }) => ({ path: instancePath || "/", code: keyword, message })));
   return value;

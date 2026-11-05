@@ -77,10 +77,12 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
     transaction(() => {
       const version = db.prepare("PRAGMA user_version").get().user_version;
       if (version > MAX_SCHEMA) throw new Error("Database was created by a newer app; refusing to downgrade.");
-      if (version === 3) return;
+      if (version === 4) return;
+      if (version === 3) { require("./migrationV4.cjs").migrate(db); return; }
       if (version >= 1) {
         if (version === 1) integrationStorage.migrate(db);
         taskStorage.migrate(db);
+        require("./migrationV4.cjs").migrate(db);
         const { indexedText } = require('./integrations/searchText.cjs');
         db.exec('DELETE FROM memory_fts');
         for (const row of db.prepare('SELECT data FROM memory_chunks').all()) {
@@ -103,6 +105,7 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
       `);
       integrationStorage.migrate(db);
       taskStorage.migrate(db);
+      require("./migrationV4.cjs").migrate(db);
       // Import with the schema in one transaction; preserve the original JSON.
       const imported = filePath !== ":memory:" && fs.existsSync(legacyFile);
       const data = ensureShape(imported ? JSON.parse(fs.readFileSync(legacyFile, "utf8")) : seedDemo ? defaultData : { settings: { aiProvider: 'local' }, events: [], journals: [], journalAnalyses: [] });
@@ -122,10 +125,12 @@ function createStore(filePath, { legacyFile = path.join(path.dirname(filePath), 
     ...extra,
     ...taskStore,
     ...portable,
+    ...require('./sourceTasks.cjs').attach(db, transaction, profileId, () => store),
     getSettings: () => parse(db.prepare("SELECT data FROM settings WHERE id=1").get()),
     updateSettings(patch) {
       return transaction(() => {
-        const settings = { ...store.getSettings(), ...patch };
+        const settings = { ...store.getSettings(), ...(patch.defaultAvailability !== undefined && patch.workingCalendar === undefined ? {workingCalendar:null} : {}), ...patch };
+        if(settings.workingCalendar) settings.workingCalendar=require('./workingCalendar.cjs').validate(settings.workingCalendar);
         db.prepare("UPDATE settings SET data=? WHERE id=1").run(JSON.stringify(settings));
         return settings;
       });

@@ -83,7 +83,7 @@ function attach(db, transaction, profile = 'local') {
       const sourceCandidates = require('./taskCandidates.cjs').candidates(candidateText, { date: sourceJournal.journalDate, timezone: contract.plan.timezone });
       if (!item) {
         item = { id: `task:${crypto.randomUUID()}`, profileId: profile, journalId: analysis.journalId, identity, sourceKey,
-          title: task.title, status: 'open', revision: 1, generation: 0, confirmed: {},
+          title: task.title, status: 'open', revision: 1, generation: 0, confirmed: {}, baseline:contract.estimates.find(e=>e.taskId===task.id)?.effortMinutes?.expected||null, features:{category:'journal_task',unit:hash(task.title),scope:contract.estimates.find(e=>e.taskId===task.id)?.scope||'next_session',baselineVersion:'scoped-v1'},
           candidates: sourceCandidates,
           ambiguousMatch: sameTitle.length > 1 || sameSource.length > 1,
           createdAt: analysis.createdAt || new Date().toISOString() };
@@ -132,6 +132,11 @@ function attach(db, transaction, profile = 'local') {
       }
       if ('deadline' in confirmed) updated.deadline = confirmed.deadline ? { ...confirmed.deadline, evidenceIds: [evidenceId] } : null;
       if (confirmed.importance) updated.importance = { level: confirmed.importance, basis: 'user', reason: 'Confirmed by you.', evidenceIds: [evidenceId] };
+      if(!('effort' in confirmed)&&previousEstimate?.effortMinutes){
+        const features=item.features||{category:'journal_task',unit:hash(item.title),scope:previousEstimate.scope,baselineVersion:'scoped-v1'};
+        const prediction=require('./effortEstimator.cjs').estimate({baseline:previousEstimate.effortMinutes.expected,low:previousEstimate.effortMinutes.low,high:previousEstimate.effortMinutes.high,features,history:db.prepare('SELECT data FROM effort_records').all().map(row=>JSON.parse(row.data)).filter(record=>get(record.taskId)),now:analysis.createdAt||new Date().toISOString()});
+        if(prediction.comparableTasks&&prediction.minutes&&contract.evidence.length<100){const historyId='history:'+id.slice(5);contract.evidence.push({id:historyId,sourceType:'history',sourceId:id,sourceVersion:hash(prediction),locator:null,excerpt:JSON.stringify(prediction),observedAt:new Date().toISOString(),sourceTimestamp:null,verification:'source_matched',facts:[{field:'effort_minutes',value:prediction.minutes}]});Object.assign(previousEstimate,{basis:'personal_history',effortMinutes:{low:prediction.low,expected:prediction.minutes,high:prediction.high},confidence:'low',evidenceIds:[historyId],assumptions:['Comparable completed work corrects this provisional estimate.'],rationale:prediction.version+'; '+prediction.comparableTasks+' comparable tasks.'});}
+      }
       if ('effort' in confirmed) {
         if (!previousEstimate) { const e = { id: `estimate:${id.slice(5)}`, taskId: id }; contract.estimates.push(e); estimates.set(task.id, e); updated.estimateId = e.id; }
         const e = estimates.get(task.id);
@@ -169,7 +174,7 @@ function attach(db, transaction, profile = 'local') {
       const confirmed = { ...item.confirmed };
       for (const key of ['status', 'deadline', 'effort', 'importance', 'dependsOn']) if (key in patch) confirmed[key] = patch[key];
       if (confirmed.importance === null) delete confirmed.importance;
-      const updated = { ...item, title: patch.title?.trim() || item.title, status: patch.status || item.status, confirmed, revision: item.revision + 1,
+      const updated = { ...item, baseline:item.baseline ?? patch.effort?.minutes ?? null, title: patch.title?.trim() || item.title, status: patch.status || item.status, confirmed, revision: item.revision + 1,
         generation: item.generation + (patch.requestNewSession === true ? 1 : 0) };
       const graph = new Map(list().map(t => [t.id, t.id === id ? updated.confirmed.dependsOn || [] : t.confirmed.dependsOn || []]));
       const visiting = new Set(), done = new Set();

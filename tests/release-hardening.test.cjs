@@ -125,8 +125,8 @@ test('v2 upgrade preserves data and rebuilds CJK search under a verified pre-mig
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'release-migration-')), file = path.join(dir, 'synthetic.sqlite');
   try {
     let store = createStore(file); store.createJournal(journal); store.putMemoryDocument({ id: 'zh', title: '笔记', content: '完成项目报告。', updatedAt: journal.updatedAt }); store.close();
-    const db = new DatabaseSync(file); db.exec('DROP TABLE task_sessions; DROP TABLE task_analyses; DROP TABLE durable_tasks; DROP TABLE reminder_receipts; PRAGMA user_version=2; DELETE FROM memory_fts;'); db.close();
-    store = createStore(file); assert.equal(store.getJournal('j').content, journal.content); assert.equal(store.health().schemaVersion, 3); assert.equal(store.lexicalMemory('报告').length, 1); store.close();
+    const db = new DatabaseSync(file); db.exec('DROP TABLE IF EXISTS task_plans; DROP TABLE IF EXISTS effort_records; DROP TABLE IF EXISTS task_candidates; DROP TABLE IF EXISTS task_sources; DROP TABLE IF EXISTS source_items; DROP TABLE task_sessions; DROP TABLE task_analyses; DROP TABLE durable_tasks; DROP TABLE reminder_receipts; PRAGMA user_version=2; DELETE FROM memory_fts;'); db.close();
+    store = createStore(file); assert.equal(store.getJournal('j').content, journal.content); assert.equal(store.health().schemaVersion, 4); assert.equal(store.lexicalMemory('报告').length, 1); store.close();
     assert.ok(fs.readdirSync(dir).some(f => f.includes('before-v2-')));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
@@ -136,7 +136,7 @@ test('v2 upgrade adopts old applied sessions so their work is not scheduled agai
   try {
     let store = createStore(file); store.updateSettings(settings); store.createJournal(journal);
     const first = save(store, 'legacy'); store.applyAnalysis('j', first.id, events); store.close();
-    const db = new DatabaseSync(file); db.exec('DROP TABLE task_sessions; DROP TABLE task_analyses; DROP TABLE durable_tasks; DROP TABLE reminder_receipts; PRAGMA user_version=2;'); db.close();
+    const db = new DatabaseSync(file); db.exec('DROP TABLE IF EXISTS task_plans; DROP TABLE IF EXISTS effort_records; DROP TABLE IF EXISTS task_candidates; DROP TABLE IF EXISTS task_sources; DROP TABLE IF EXISTS source_items; DROP TABLE task_sessions; DROP TABLE task_analyses; DROP TABLE durable_tasks; DROP TABLE reminder_receipts; PRAGMA user_version=2;'); db.close();
     store = createStore(file); const next = save(store, 'new'); assert.equal(next.scheduleDrafts.length, 0); assert.equal(next.persistentTasks[0].sessionEventIds.length, 1); store.close();
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

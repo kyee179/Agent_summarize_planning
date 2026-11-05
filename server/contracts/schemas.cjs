@@ -119,4 +119,5 @@ const definitions = {
 const schemas = Object.fromEntries(Object.entries(definitions).map(([name, definition]) => [name, {
   $schema: "http://json-schema.org/draft-07/schema#", $id: `${base}${name}.json`, title: `Calendar ${name} v1`, ...definition
 }]));
+const v2=structuredClone(schemas.bundle);v2.$id=base.replace('/v1/','/v2/')+'bundle.json';v2.title='Calendar bundle v2';v2.properties.schemaVersion={const:2};schemas.bundleV2=v2;
 module.exports = { schemas };

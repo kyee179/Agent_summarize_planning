@@ -1,6 +1,6 @@
 {
   "name": "agent-summarize-planning",
-  "version": "0.3.0",
+  "version": "0.4.0-rc.1",
   "description": "A learning-focused React, Node.js, and Electron calendar app with reminders, journals, and AI planning drafts.",
   "main": "electron/main.cjs",
   "type": "module",
@@ -38,7 +38,8 @@
     "monitor": "node scripts/monitor.cjs",
     "smoke:auth": "node scripts/smoke-desktop.cjs --auth",
     "validate:package": "node scripts/validate-package.cjs",
-    "release:checksums": "node scripts/release-checksums.cjs"
+    "release:checksums": "node scripts/release-checksums.cjs",
+    "eval:effort": "python evaluation/effort/train.py --synthetic --mechanics-only"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

@@ -9,7 +9,7 @@ async function fixture(t) {
   const previousProvider = process.env.AI_PROVIDER;
   process.env.AI_PROVIDER = "local";
   const store = createStore(":memory:");
-  store.updateSettings({ timezone: "Asia/Shanghai" });
+  store.updateSettings({ timezone: "Asia/Shanghai", workingCalendar:null });
   const apiToken = "synthetic-planning-test-token-32-characters";
   let currentTime = "2026-10-11T08:00:00Z";
   const server = createApp({ store, apiToken, clock: () => currentTime }).listen(0, "127.0.0.1");

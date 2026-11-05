@@ -238,7 +238,7 @@ function createProfileGateway({ dataFile, apiToken, allowedOrigins = [], buildAp
   });
   app.post('/api/account/onboarding', (req, res) => {
     const context = req.profileContext, input = req.body;
-    const preferences = { timezone: input.timezone, defaultAvailability: input.defaultAvailability, planningLeadMinutes: input.planningLeadMinutes ?? 5, aiProvider: input.aiProvider || 'local' };
+    const preferences = { ...(input.workingCalendar !== undefined ? {workingCalendar:input.workingCalendar===null?null:require('../workingCalendar.cjs').validate(input.workingCalendar)} : {}), timezone: input.timezone, defaultAvailability: input.defaultAvailability, planningLeadMinutes: input.planningLeadMinutes ?? 5, aiProvider: input.aiProvider || 'local' };
     if (!['local', 'glm', 'openai', 'groq', 'gemini'].includes(preferences.aiProvider)) throw invalid('Choose a supported AI service.');
     if (!Number.isInteger(preferences.planningLeadMinutes) || preferences.planningLeadMinutes < 1 || preferences.planningLeadMinutes > 120) throw invalid('Review time must be 1–120 minutes.');
     require('../contracts/validate.cjs').assertBundle({ schemaVersion: 1, evidence: [], tasks: [], estimates: [], plan: { id: 'onboarding', state: 'proposal', timezone: preferences.timezone, targetDate: '2030-01-01', availability: preferences.defaultAvailability, bufferMinutes: 15, blocks: [], unscheduled: [], warnings: [] } });

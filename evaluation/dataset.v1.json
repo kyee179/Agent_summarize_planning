@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "datasetVersion": "1.2.0",
+  "datasetVersion": "1.3.0",
   "origin": "Hand-authored synthetic regression cases; no personal records or model-generated labels.",
   "date": "2030-01-07",
   "analysis": [
@@ -1116,5 +1116,18 @@
     "retrievalRecallAt3": 1,
     "retrievalMRR": 0.8,
     "fusionPassRate": 1
+  },
+  "timeframes": {
+    "fixtureOrigin": "invented",
+    "cases": [
+      "lunch-boundary",
+      "weekly-exception",
+      "source-only-task",
+      "capture-deduplication",
+      "source-revocation",
+      "history-shrinkage",
+      "actual-outcome-idempotency"
+    ],
+    "testCommand": "node --test tests/timeframes.test.cjs"
   }
 }
