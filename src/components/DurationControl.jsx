@@ -1,14 +1,16 @@
+import { t, useLocale } from '../i18n/index.js';
 export function DurationControl({
   value,
   onChange,
   label = "Planning duration in minutes",
   disabled = false,
 }) {
+  useLocale();
   const minutes = Number(value) || 0;
   return (
     <div className="duration-control">
       <label>
-        {label}
+        {t(label)}
         <input
           type="number"
           min={1}
@@ -19,7 +21,7 @@ export function DurationControl({
         />
       </label>
       <input
-        aria-label="Adjust planning duration"
+        aria-label={t("Adjust planning duration")}
         type="range"
         min={minutes > 0 && minutes < 15 ? 1 : 15}
         max={Math.max(240, Math.ceil(minutes / 15) * 15)}
@@ -29,9 +31,7 @@ export function DurationControl({
         onChange={(e) => onChange(e.target.value)}
       />
       <span className="helper">
-        {minutes ? `${minutes} minutes selected` : "Duration unknown"} ·
-        Adjusting a plan does not measure actual effort.
-      </span>
+        {minutes ? t("{p0} minutes selected", {p0: minutes}) : t("Duration unknown")}{t(" · Adjusting a plan does not measure actual effort. ")}</span>
     </div>
   );
 }

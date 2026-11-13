@@ -1,7 +1,9 @@
+import { t, useLocale, messageText } from '../i18n/index.js';
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 
 export function SavedTasks({ journalId, analysisId, busy, onChanged }) {
+  useLocale();
   const [tasks, setTasks] = useState([]), [error, setError] = useState(''), [pending, setPending] = useState(false), [revision, setRevision] = useState(0);
   useEffect(() => {
     let active = true;
@@ -16,5 +18,5 @@ export function SavedTasks({ journalId, analysisId, busy, onChanged }) {
     catch (e) { setError(e.message); }
     finally { setPending(false); }
   }
-  return <>{error && <p role="alert">{error}</p>}{tasks.length > 0 && <details className="advanced-section"><summary>Tracked tasks · {tasks.length}</summary>{tasks.map(task => <div className="task-pill" key={task.id}><strong>{task.title}</strong><small>{task.status.replaceAll('_', ' ')} · {task.sessionEventIds.length} calendar sessions</small><button className="text-button" type="button" disabled={busy || pending} onClick={() => update(task, ['completed', 'cancelled'].includes(task.status))}>{['completed', 'cancelled'].includes(task.status) ? 'Reopen and allow another session' : 'Mark completed'}</button></div>)}<p className="helper">Changing task status keeps existing calendar events. Generate a new plan to use the updated status.</p></details>}</>;
+  return <>{error && <p role="alert">{messageText(error)}</p>}{tasks.length > 0 && <details className="advanced-section"><summary>{t("Tracked tasks · ")}{tasks.length}</summary>{tasks.map(task => <div className="task-pill" key={task.id}><strong>{task.title}</strong><small>{t(task.status.replaceAll('_', ' '))} · {task.sessionEventIds.length}{t(" calendar sessions")}</small><button className="text-button" type="button" disabled={busy || pending} onClick={() => update(task, ['completed', 'cancelled'].includes(task.status))}>{['completed', 'cancelled'].includes(task.status) ? t("Reopen and allow another session") : t("Mark completed")}</button></div>)}<p className="helper">{t("Changing task status keeps existing calendar events. Generate a new plan to use the updated status.")}</p></details>}</>;
 }

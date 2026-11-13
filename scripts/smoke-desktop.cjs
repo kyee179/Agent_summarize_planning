@@ -8,10 +8,10 @@ const environment = { ...process.env, CALENDAR_SMOKE_TEST: "1", AI_PROVIDER: "lo
   CALENDAR_SMOKE_DIRECTORY: directory, CALENDAR_DB_PATH: path.join(directory, "calendar.sqlite") };
 delete environment.ELECTRON_RUN_AS_NODE;
 delete environment.ELECTRON_START_URL;
-const child = spawn(require("electron"), [path.join(__dirname, "..", "tests", process.argv.includes('--auth') ? 'electron-auth-smoke.cjs' : 'electron-smoke.cjs')], {
+const child = spawn(require("electron"), [path.join(__dirname, "..", "tests", process.argv.includes('--language') ? 'electron-language-smoke.cjs' : process.argv.includes('--auth') ? 'electron-auth-smoke.cjs' : 'electron-smoke.cjs')], {
   env: environment, stdio: "inherit", windowsHide: true
 });
-const timer = setTimeout(() => child.kill(), 45000);
+const timer = setTimeout(() => child.kill(), process.argv.includes('--language') ? 60000 : 45000);
 child.on("error", (error) => { console.error(error.message); });
 child.on("close", (code) => {
   clearTimeout(timer);

@@ -1,3 +1,4 @@
+import { getLocale, t } from '../i18n/index.js';
 const formatters = new Map();
 export const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
@@ -37,10 +38,10 @@ export function wallTimeToISO(input, timezone = deviceTimezone) {
 export function dayRange(key, timezone = deviceTimezone) {
   return { from: wallTimeToISO(`${key}T00:00`, timezone), to: wallTimeToISO(`${shiftDate(key, 1)}T00:00`, timezone) };
 }
-export function timeLabel(instant, timezone) { return new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: '2-digit', minute: '2-digit' }).format(new Date(instant)); }
+export function timeLabel(instant, timezone) { return new Intl.DateTimeFormat(getLocale(), { timeZone: timezone, hour: '2-digit', minute: '2-digit' }).format(new Date(instant)); }
 export function dateLabel(key, options = {}) {
-  if (!key || !Number.isFinite(calendarDate(key).getTime())) return 'Choose a date';
-  return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', ...options }).format(calendarDate(key));
+  if (!key || !Number.isFinite(calendarDate(key).getTime())) return t('Choose a date');
+  return new Intl.DateTimeFormat(getLocale(), { month: 'long', day: 'numeric', ...options }).format(calendarDate(key));
 }
 export function eventsOnDay(events, key, timezone) {
   const { from, to } = dayRange(key, timezone);

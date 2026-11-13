@@ -58,12 +58,14 @@ jobs:
           node scripts/prepare-linux-sandbox.cjs
           xvfb-run -a pnpm smoke:desktop
           xvfb-run -a pnpm smoke:auth
+          xvfb-run -a pnpm smoke:language
 
       - name: Desktop IPC and UI smoke (Windows)
         if: runner.os == 'Windows'
         run: |
           pnpm smoke:desktop
           pnpm smoke:auth
+          pnpm smoke:language
 
       - name: Synthetic evaluation report
         if: always()
