@@ -1,6 +1,6 @@
 # Agent Summarization and Planning Calendar
 
-Download and first-run instructions: [Download and install](docs/DOWNLOAD_AND_INSTALL.md). A Windows x64 test installer has been validated locally; no GitHub Release is published yet. See [additional release validation](docs/RELEASE_VALIDATION.md) for packaged/installed checks and the remaining public-release gates.
+Download and first-run instructions: [Download and install](docs/DOWNLOAD_AND_INSTALL.md). Windows x64, macOS arm64 and Linux builds are available through [GitHub Releases](https://github.com/kyee179/Agent_summarize_planning/releases). See [additional release validation](docs/RELEASE_VALIDATION.md) for packaged/installed checks and the remaining public-release gates.
 
 Hosted email/password accounts, local workspace isolation, offline access and first-run setup are explained in [docs/LOGIN_ONBOARDING.md](docs/LOGIN_ONBOARDING.md). The Supabase integration can be configured after installation; journals remain on this device.
 
@@ -17,6 +17,8 @@ time: a to b; title; notification format
 ```
 
 The project is intentionally small enough to understand while still using a realistic software-development pipeline: API contracts, validation, linting, automated tests, GitHub Actions, and Electron release packaging.
+
+Use the **中文 / English** button at the top right to change the interface language. Settings offers the same choice. The preference is remembered on this device; generated analysis has a separate language setting. See the [step-by-step implementation guide](docs/INTERFACE_LANGUAGES.md).
 
 ## Features
 

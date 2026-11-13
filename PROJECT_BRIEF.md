@@ -1,5 +1,9 @@
 # Agent summarization and planning project
 
+## Chinese / English interface 0.4.0-rc.3 (2026-11-13)
+
+The user requested a Chinese language pack, an English/Chinese selection button, testing, GitHub push and a new version release. This authorizes the feature commits, push, merge, tag and publication after verification. Added a shared Chinese UI catalog, persistent device language preference, welcome/onboarding/workspace toggle, explicit Settings choice and localized display dates. User content, AI output language, data schemas, protocol enums and permissions retain their existing behavior. New regression tests and a cross-platform Electron language smoke protect unsaved state, source text and saved dropdown values. Fixed a pre-existing activity test whose October fixture had aged past the real-clock 30-day evidence-retention limit by pinning that test’s clock. Walkthrough: docs/INTERFACE_LANGUAGES.md. Publication status is recorded in the workspace brief and GitHub; do not infer a published release merely from this source note. Preserve all 25 original server annotation files outside commits.
+
 ## Release correction 0.4.0-rc.2 (2026-11-05)
 
 User authorized merge and release. PR #2 merged as 12bcd940a518009b2d6720fafebc4d29e05742a6; main Windows/Linux CI passed. Tag rc.1 Windows/Linux builds passed, but macOS showed an existing profile realpath-versus-logical-root bug; its stalled test job was cancelled to inspect logs. Fix canonical root comparison while rejecting nested profile redirects, add three synthetic path regressions and bounded server-test timeouts, and advance app/release policy to 0.4.0-rc.2. Do not move the existing tag or publish the rc.1 draft. Current release publication status lives in the workspace brief and GitHub.

@@ -58,6 +58,8 @@ test('activity normalization excludes AFK, redacts titles/paths, and counts over
   assert.match(records[0].excerpt, /does not prove/);
 });
 test('activity requires bucket/domain consent and rejects truncated import without replacing data', async (t) => {
+  // Evidence retention uses the real clock too; keep it aligned with this invented import.
+  t.mock.method(Date, 'now', () => Date.parse(now));
   const store = storeFixture(t); let huge = false;
   const activity = createActivity(store, { clock, fetchImpl: async (url) => {
     const u = new URL(url);

@@ -1,3 +1,4 @@
+import { t, useLocale } from '../i18n/index.js';
 const names = [
   "Sunday",
   "Monday",
@@ -24,6 +25,7 @@ export function weeklyCalendar(legacy) {
   };
 }
 export function WorkingCalendarEditor({ value, onChange, legacy }) {
+  useLocale();
   const replaceDay = (day, intervals) =>
     onChange({
       ...value,
@@ -34,13 +36,11 @@ export function WorkingCalendarEditor({ value, onChange, legacy }) {
   function slots(items, change, label) {
     return (
       <div className="working-slots">
-        {items.length === 0 && <span className="helper">Day off</span>}
+        {items.length === 0 && <span className="helper">{t("Day off")}</span>}
         {items.map((slot, index) => (
           <div className="working-slot" key={index}>
-            <label>
-              From
-              <input
-                aria-label={`${label} start ${index + 1}`}
+            <label>{t("From ")}<input
+                aria-label={t("{p0} start {p1}", {p0: t(label), p1: index + 1})}
                 type="time"
                 required
                 value={slot.startsAt}
@@ -53,10 +53,8 @@ export function WorkingCalendarEditor({ value, onChange, legacy }) {
                 }
               />
             </label>
-            <label>
-              Until
-              <input
-                aria-label={`${label} end ${index + 1}`}
+            <label>{t("Until ")}<input
+                aria-label={t("{p0} end {p1}", {p0: t(label), p1: index + 1})}
                 required
                 pattern="([01][0-9]|2[0-3]):[0-5][0-9]|24:00"
                 value={slot.endsAt}
@@ -72,11 +70,9 @@ export function WorkingCalendarEditor({ value, onChange, legacy }) {
             <button
               type="button"
               className="text-button"
-              aria-label={`Remove ${label} interval ${index + 1}`}
+              aria-label={t("Remove {p0} interval {p1}", {p0: t(label), p1: index + 1})}
               onClick={() => change(items.filter((_, i) => i !== index))}
-            >
-              Remove
-            </button>
+            >{t("Remove ")}</button>
           </div>
         ))}
         <button
@@ -86,9 +82,7 @@ export function WorkingCalendarEditor({ value, onChange, legacy }) {
           onClick={() =>
             change([...items, { startsAt: "09:00", endsAt: "12:00" }])
           }
-        >
-          Add interval
-        </button>
+        >{t("Add interval ")}</button>
       </div>
     );
   }
@@ -101,19 +95,14 @@ export function WorkingCalendarEditor({ value, onChange, legacy }) {
           onChange={(e) =>
             onChange(e.target.checked ? weeklyCalendar(legacy) : null)
           }
-        />
-        Use weekly working hours and date exceptions
-      </label>
+        />{t("Use weekly working hours and date exceptions ")}</label>
       {value && (
         <>
-          <p className="helper">
-            Only these intervals are available for planning. Leave lunch breaks
-            between intervals. Empty days stay off.
-          </p>
+          <p className="helper">{t("Only these intervals are available for planning. Leave lunch breaks between intervals. Empty days stay off. ")}</p>
           {value.weekdays.map((items, day) => (
             <div className="working-day" key={day}>
               <div>
-                <strong>{names[day]}</strong>
+                <strong>{t(names[day])}</strong>
                 <button
                   type="button"
                   className="text-button"
@@ -127,20 +116,16 @@ export function WorkingCalendarEditor({ value, onChange, legacy }) {
                       ),
                     })
                   }
-                >
-                  Copy to weekdays
-                </button>
+                >{t("Copy to weekdays ")}</button>
               </div>
               {slots(items, (next) => replaceDay(day, next), names[day])}
             </div>
           ))}
-          <h3>Date exceptions</h3>
+          <h3>{t("Date exceptions")}</h3>
           {value.exceptions.map((item, index) => (
             <div className="working-day" key={index}>
-              <label>
-                Date
-                <input
-                  aria-label={`Exception date ${index + 1}`}
+              <label>{t("Date ")}<input
+                  aria-label={t("Exception date {p0}", {p0: index + 1})}
                   type="date"
                   required
                   value={item.date}
@@ -174,9 +159,7 @@ export function WorkingCalendarEditor({ value, onChange, legacy }) {
                     exceptions: value.exceptions.filter((_, i) => i !== index),
                   })
                 }
-              >
-                Remove exception
-              </button>
+              >{t("Remove exception ")}</button>
             </div>
           ))}
           <button
@@ -188,9 +171,7 @@ export function WorkingCalendarEditor({ value, onChange, legacy }) {
                 exceptions: [...value.exceptions, { date: "", intervals: [] }],
               })
             }
-          >
-            Add date exception
-          </button>
+          >{t("Add date exception ")}</button>
         </>
       )}
     </section>

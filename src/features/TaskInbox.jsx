@@ -1,3 +1,4 @@
+import { t, useLocale, messageText, getLocale } from '../i18n/index.js';
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api.js";
 import { DurationControl } from "../components/DurationControl.jsx";
@@ -5,6 +6,7 @@ import { TaskFacts } from "../components/TaskFacts.jsx";
 import { PlanningTasks } from "../components/PlanningTasks.jsx";
 
 export function TaskInbox({ workspace: w }) {
+  useLocale();
   const [data, setData] = useState({ sources: [], candidates: [] }),
     [tasks, setTasks] = useState([]),
     [selected, setSelected] = useState([]);
@@ -142,50 +144,38 @@ export function TaskInbox({ workspace: w }) {
       <section className="settings-section">
         <div className="section-heading">
           <div>
-            <h2>Tasks from your sources</h2>
-            <p className="muted">
-              Discover commitments from email and selected work apps, then
-              review what belongs to you.
-            </p>
+            <h2>{t("Tasks from your sources")}</h2>
+            <p className="muted">{t("Discover commitments from email and selected work apps, then review what belongs to you. ")}</p>
           </div>
           <button
             type="button"
             className="secondary-button"
             disabled={busy}
             onClick={() => run(load)}
-          >
-            Refresh tasks
-          </button>
+          >{t("Refresh tasks ")}</button>
         </div>
         {error && (
           <p className="caution" role="alert">
-            {error}
+            {messageText(error)}
           </p>
         )}
       </section>
       <div className="source-grid">
         <section className="settings-section">
-          <h3>Gmail · read only</h3>
+          <h3>{t("Gmail · read only")}</h3>
           {data.gmail?.lastError && (
-            <p className="caution">{data.gmail.lastError}</p>
+            <p className="caution">{messageText(data.gmail.lastError)}</p>
           )}
           {data.gmail?.pending && (
             <button
               className="text-button"
               type="button"
               onClick={() => run(() => api.gmailCancel())}
-            >
-              Cancel connection
-            </button>
+            >{t("Cancel connection ")}</button>
           )}
-          <p className="helper">
-            Separate permission from Google Calendar. Imports plain-text message
-            content locally; attachments are excluded.
-          </p>
+          <p className="helper">{t("Separate permission from Google Calendar. Imports plain-text message content locally; attachments are excluded. ")}</p>
           <div className="field-grid">
-            <label>
-              Recent days
-              <input
+            <label>{t("Recent days ")}<input
                 type="number"
                 min={1}
                 max={30}
@@ -193,14 +183,12 @@ export function TaskInbox({ workspace: w }) {
                 onChange={(e) => setMailDays(Number(e.target.value))}
               />
             </label>
-            <label>
-              Gmail folder
-              <select
+            <label>{t("Gmail folder ")}<select
                 value={mailFolder}
                 onChange={(e) => setMailFolder(e.target.value)}
               >
                 {["INBOX", "STARRED", "IMPORTANT", "SENT"].map((folder) => (
-                  <option key={folder}>{folder}</option>
+                  <option key={folder} value={folder}>{folder}</option>
                 ))}
               </select>
             </label>
@@ -210,25 +198,16 @@ export function TaskInbox({ workspace: w }) {
               type="checkbox"
               checked={mailAuto}
               onChange={(e) => setMailAuto(e.target.checked)}
-            />
-            After import, refresh this selection every 10 minutes while the
-            workspace is open
-          </label>
+            />{t("After import, refresh this selection every 10 minutes while the workspace is open ")}</label>
           {data.gmail?.autoRefreshing && (
             <button
               className="text-button"
               type="button"
               onClick={() => run(() => api.gmailCancel())}
-            >
-              Pause automatic refresh
-            </button>
+            >{t("Pause automatic refresh ")}</button>
           )}
           <p role="status">
-            {data.gmail?.pending
-              ? "Waiting for Google consent…"
-              : data.gmail?.connected
-                ? "Connected"
-                : "Not connected"}
+            {data.gmail?.pending ? t("Waiting for Google consent…") : data.gmail?.connected ? t("Connected") : t("Not connected")}
           </p>
           <div className="toolbar-actions">
             <button
@@ -241,9 +220,7 @@ export function TaskInbox({ workspace: w }) {
                   await api.openGoogleConsent(result.authorizationUrl);
                 })
               }
-            >
-              Connect Gmail
-            </button>
+            >{t("Connect Gmail ")}</button>
             {data.gmail?.connected && (
               <>
                 <button
@@ -260,9 +237,7 @@ export function TaskInbox({ workspace: w }) {
                       setPlan(null);
                     })
                   }
-                >
-                  Import recent changes
-                </button>
+                >{t("Import recent changes ")}</button>
                 <button
                   type="button"
                   className="text-button"
@@ -273,35 +248,25 @@ export function TaskInbox({ workspace: w }) {
                       setPlan(null);
                     })
                   }
-                >
-                  Disconnect locally
-                </button>
+                >{t("Disconnect locally ")}</button>
               </>
             )}
           </div>
           {data.gmail?.sync && (
             <p className="helper">
-              {data.gmail.sync.window} · Last sync {data.gmail.sync.syncedAt}
+              {t(data.gmail.sync.window)}{t(" · Last sync ")}{data.gmail.sync.syncedAt}
             </p>
           )}
         </section>
         <section className="settings-section">
-          <h3>Selected work app</h3>
-          <p className="helper">
-            Reads exposed text from one selected window every minute. Capture
-            starts off. Keep password managers and confidential windows
-            excluded.
-          </p>
+          <h3>{t("Selected work app")}</h3>
+          <p className="helper">{t("Reads exposed text from one selected window every minute. Capture starts off. Keep password managers and confidential windows excluded. ")}</p>
           <p role="status">
-            {data.capture?.running
-              ? `Capturing ${data.capture.selected?.app || "selected app"}`
-              : "Capture paused"}
-            {data.capture?.lastCapturedAt
-              ? ` · ${data.capture.lastCapturedAt}`
-              : ""}
+            {data.capture?.running ? t("Capturing {p0}", {p0: data.capture.selected?.app || t("selected app")}) : t("Capture paused")}
+            {data.capture?.lastCapturedAt ? ` · ${data.capture.lastCapturedAt}` : ""}
           </p>
           {data.capture?.lastError && (
-            <p className="caution">{data.capture.lastError}</p>
+            <p className="caution">{messageText(data.capture.lastError)}</p>
           )}
           <div className="toolbar-actions">
             <button
@@ -315,35 +280,29 @@ export function TaskInbox({ workspace: w }) {
                   setWindowIndex("");
                 })
               }
-            >
-              Choose a work-app window
-            </button>
+            >{t("Choose a work-app window ")}</button>
             {data.capture?.running && (
               <button
                 type="button"
                 className="secondary-button"
                 disabled={busy}
                 onClick={() => run(() => api.captureStop())}
-              >
-                Pause capture
-              </button>
+              >{t("Pause capture ")}</button>
             )}
           </div>
           {windows.length > 0 && (
             <>
-              <label>
-                Window
-                <select
+              <label>{t("Window ")}<select
                   value={windowIndex}
                   onChange={(e) => setWindowIndex(e.target.value)}
                 >
-                  <option value="">Choose an app</option>
+                  <option value="">{t("Choose an app")}</option>
                   {windows.map((item, index) => (
                     <option
                       key={`${item.processId}:${item.windowHandle}`}
                       value={index}
                     >
-                      {item.app} · process {item.processId}
+                      {item.app}{t(" · process ")}{item.processId}
                     </option>
                   ))}
                 </select>
@@ -353,9 +312,7 @@ export function TaskInbox({ workspace: w }) {
                   type="checkbox"
                   checked={ocr}
                   onChange={(e) => setOcr(e.target.checked)}
-                />
-                Allow local OCR when accessible text is unavailable
-              </label>
+                />{t("Allow local OCR when accessible text is unavailable ")}</label>
               <button
                 type="button"
                 className="primary-button"
@@ -368,15 +325,13 @@ export function TaskInbox({ workspace: w }) {
                     }),
                   )
                 }
-              >
-                Allow text capture for this window
-              </button>
+              >{t("Allow text capture for this window ")}</button>
             </>
           )}
         </section>
       </div>
       <details className="advanced-section">
-        <summary>Add selected email, document or app text</summary>
+        <summary>{t("Add selected email, document or app text")}</summary>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -391,85 +346,66 @@ export function TaskInbox({ workspace: w }) {
             });
           }}
         >
-          <label>
-            Source type
-            <select
+          <label>{t("Source type ")}<select
               value={input.kind}
               onChange={(e) => setInput({ ...input, kind: e.target.value })}
             >
-              <option value="email">Email</option>
-              <option value="work_app">Work app</option>
-              <option value="document">Document</option>
+              <option value="email">{t("Email")}</option>
+              <option value="work_app">{t("Work app")}</option>
+              <option value="document">{t("Document")}</option>
             </select>
           </label>
-          <label>
-            Title
-            <input
+          <label>{t("Title ")}<input
               value={input.title}
               maxLength={500}
               onChange={(e) => setInput({ ...input, title: e.target.value })}
             />
           </label>
-          <label>
-            Original source time, optional
-            <input
-              placeholder="2026-11-05T09:00:00+08:00"
+          <label>{t("Original source time, optional ")}<input
+              placeholder={t("2026-11-05T09:00:00+08:00")}
               value={input.sourceTimestamp}
               onChange={(e) =>
                 setInput({ ...input, sourceTimestamp: e.target.value })
               }
             />
           </label>
-          <label>
-            Source link, optional
-            <input
+          <label>{t("Source link, optional ")}<input
               type="url"
               value={input.locator}
               onChange={(e) => setInput({ ...input, locator: e.target.value })}
             />
           </label>
-          <label>
-            Selected source text
-            <textarea
+          <label>{t("Selected source text ")}<textarea
               required
               maxLength={40000}
               value={input.text}
               onChange={(e) => setInput({ ...input, text: e.target.value })}
             />
           </label>
-          <button className="primary-button" disabled={busy} type="submit">
-            Store this selected content locally
-          </button>
+          <button className="primary-button" disabled={busy} type="submit">{t("Store this selected content locally ")}</button>
         </form>
       </details>
       <section className="settings-section">
-        <h3>Sources and discovery</h3>
+        <h3>{t("Sources and discovery")}</h3>
         <label className="check-row">
           <input
             type="checkbox"
             checked={allowAI}
             onChange={(e) => setAllowAI(e.target.checked)}
-          />
-          Allow the selected source text to be sent to my configured AI service
-          when I choose Discover
-        </label>
-        <p className="helper">
-          Local discovery suggests explicit requests. Ownership, cancelled
-          requests and quoted old messages need review. Captures cover
-          visible/exposed content only.
-        </p>
+          />{t("Allow the selected source text to be sent to my configured AI service when I choose Discover ")}</label>
+        <p className="helper">{t("Local discovery suggests explicit requests. Ownership, cancelled requests and quoted old messages need review. Captures cover visible/exposed content only. ")}</p>
         {data.sources.map((source) => (
           <div className="source-task" key={source.id}>
             <strong>{source.title}</strong>
             {!source.revoked && (
               <details>
-                <summary>Read captured text</summary>
+                <summary>{t("Read captured text")}</summary>
                 <blockquote>{source.text}</blockquote>
               </details>
             )}
             <p className="helper">
-              {source.kind.replaceAll("_", " ")} ·{" "}
-              {source.revoked ? "Removed" : source.observedAt}
+              {t(source.kind.replaceAll("_", " "))} ·{" "}
+              {source.revoked ? t("Removed") : source.observedAt}
             </p>
             <div className="toolbar-actions">
               <button
@@ -477,9 +413,7 @@ export function TaskInbox({ workspace: w }) {
                 className="secondary-button"
                 disabled={busy || source.revoked}
                 onClick={() => run(() => api.discoverTasks(source.id, allowAI))}
-              >
-                Discover tasks
-              </button>
+              >{t("Discover tasks ")}</button>
               <button
                 type="button"
                 className="text-button"
@@ -490,34 +424,28 @@ export function TaskInbox({ workspace: w }) {
                     setPlan(null);
                   })
                 }
-              >
-                Delete captured content
-              </button>
+              >{t("Delete captured content ")}</button>
             </div>
           </div>
         ))}
       </section>
       <section className="settings-section">
-        <h3>Review suggestions · {proposals.length}</h3>
+        <h3>{t("Review suggestions · ")}{proposals.length}</h3>
         {proposals.length === 0 && (
-          <p className="helper">No pending suggestions.</p>
+          <p className="helper">{t("No pending suggestions.")}</p>
         )}
         {proposals.map((candidate) => (
           <div className="source-task" key={candidate.id}>
             <strong>{candidate.title}</strong>
             {candidate.state === "needs_review" && (
-              <p className="caution">
-                Source changed. Review the current content and task status; this
-                previous request is not reconfirmed.
-              </p>
+              <p className="caution">{t("Source changed. Review the current content and task status; this previous request is not reconfirmed. ")}</p>
             )}
             <blockquote>{candidate.quote}</blockquote>
             <p className="helper">
-              {candidate.ownership} · {sourceMap.get(candidate.sourceId)?.title}
+              {t(candidate.ownership)} · {sourceMap.get(candidate.sourceId)?.title}
             </p>
             {candidate.deadlineSuggestion?.deadlineDate && (
-              <p className="helper">
-                Unconfirmed source date:{" "}
+              <p className="helper">{t("Unconfirmed source date:")}{" "}
                 {candidate.deadlineSuggestion.deadlineDate}
               </p>
             )}
@@ -534,9 +462,7 @@ export function TaskInbox({ workspace: w }) {
                     }),
                   )
                 }
-              >
-                Accept as my task
-              </button>
+              >{t("Accept as my task ")}</button>
               <button
                 type="button"
                 className="text-button"
@@ -549,12 +475,8 @@ export function TaskInbox({ workspace: w }) {
                     }),
                   )
                 }
-              >
-                Dismiss
-              </button>
-              <label>
-                Link to an existing task
-                <select
+              >{t("Dismiss ")}</button>
+              <label>{t("Link to an existing task ")}<select
                   value=""
                   disabled={busy}
                   onChange={(e) => {
@@ -568,7 +490,7 @@ export function TaskInbox({ workspace: w }) {
                       );
                   }}
                 >
-                  <option value="">Choose merge target…</option>
+                  <option value="">{t("Choose merge target…")}</option>
                   {tasks.map((task) => (
                     <option value={task.id} key={task.id}>
                       {task.title}
@@ -581,7 +503,7 @@ export function TaskInbox({ workspace: w }) {
         ))}
       </section>
       <section className="settings-section">
-        <h3>Your tasks</h3>
+        <h3>{t("Your tasks")}</h3>
         {tasks.map((task) => (
           <div className="source-task" key={task.id}>
             <label className="check-row">
@@ -601,8 +523,8 @@ export function TaskInbox({ workspace: w }) {
               {task.title}
             </label>
             <p className="helper">
-              {task.status.replaceAll("_", " ")} ·{" "}
-              {task.scope || task.confirmed?.effort?.scope || "Review scope"}
+              {t(task.status.replaceAll("_", " "))} ·{" "}
+              {t((task.scope || task.confirmed?.effort?.scope || "Review scope").replaceAll("_", " "))}
             </p>
             <DurationControl
               value={
@@ -622,25 +544,20 @@ export function TaskInbox({ workspace: w }) {
                 className="secondary-button"
                 disabled={busy || !durations[task.id]}
                 onClick={() => run(() => saveDuration(task))}
-              >
-                Save selected duration
-              </button>
+              >{t("Save selected duration ")}</button>
               <button
                 type="button"
                 className="text-button"
                 disabled={busy}
                 onClick={() => setEditing(task)}
-              >
-                Review scope, deadline and status
-              </button>
+              >{t("Review scope, deadline and status ")}</button>
             </div>
           </div>
         ))}
       </section>
       <section className="settings-section">
-        <h3>Prepare a draft</h3>
-        <label>
-          Planning date ({w.settings.timezone})
+        <h3>{t("Prepare a draft")}</h3>
+        <label>{t("Planning date (")}{w.settings.timezone})
           <input
             type="date"
             value={date}
@@ -664,9 +581,7 @@ export function TaskInbox({ workspace: w }) {
               ),
             )
           }
-        >
-          Prepare selected tasks
-        </button>
+        >{t("Prepare selected tasks ")}</button>
         {plan && (
           <>
             <PlanningTasks analysis={{ contract: plan.contract }} />
@@ -674,13 +589,13 @@ export function TaskInbox({ workspace: w }) {
               <p key={block.id}>
                 {plan.contract.tasks.find((t) => t.id === block.taskId)?.title}{" "}
                 ·{" "}
-                {new Intl.DateTimeFormat(undefined, {
+                {new Intl.DateTimeFormat(getLocale(), {
                   timeZone: w.settings.timezone,
                   dateStyle: "medium",
                   timeStyle: "short",
                 }).format(new Date(block.startsAt))}
                 –
-                {new Intl.DateTimeFormat(undefined, {
+                {new Intl.DateTimeFormat(getLocale(), {
                   timeZone: w.settings.timezone,
                   timeStyle: "short",
                 }).format(new Date(block.endsAt))}
@@ -699,23 +614,15 @@ export function TaskInbox({ workspace: w }) {
                 })
               }
             >
-              {plan.applied
-                ? "Added to calendar"
-                : "Add reviewed draft to calendar"}
+              {plan.applied ? t("Added to calendar") : t("Add reviewed draft to calendar")}
             </button>
           </>
         )}
       </section>
       <section className="settings-section">
-        <h3>Actual active effort</h3>
-        <p className="helper">
-          Record the active total for the same scope and original plan. Include
-          all sessions; exclude breaks and waiting. Calendar reservations and
-          slider edits are kept separate.
-        </p>
-        <label>
-          Task from the current plan
-          <select
+        <h3>{t("Actual active effort")}</h3>
+        <p className="helper">{t("Record the active total for the same scope and original plan. Include all sessions; exclude breaks and waiting. Calendar reservations and slider edits are kept separate. ")}</p>
+        <label>{t("Task from the current plan ")}<select
             value={outcomeTask}
             disabled={Boolean(timer.startedAt)}
             onChange={(e) => {
@@ -725,7 +632,7 @@ export function TaskInbox({ workspace: w }) {
               setActual("");
             }}
           >
-            <option value="">Choose a planned task</option>
+            <option value="">{t("Choose a planned task")}</option>
             {plan?.contract.tasks.map((task) => (
               <option value={task.id} key={task.id}>
                 {task.title}
@@ -741,26 +648,18 @@ export function TaskInbox({ workspace: w }) {
             onClick={() =>
               setTimer({ ...timer, taskId: outcomeTask, startedAt: Date.now() })
             }
-          >
-            Start / resume
-          </button>
+          >{t("Start / resume ")}</button>
           <button
             type="button"
             className="secondary-button"
             disabled={!timer.startedAt}
             onClick={pauseTimer}
-          >
-            Pause
-          </button>
+          >{t("Pause ")}</button>
         </div>
         <p className="helper" role="status">
-          {timer.startedAt
-            ? "Timer running on this screen. Pause before leaving."
-            : "Timer paused. You may enter the active total manually."}
+          {timer.startedAt ? t("Timer running on this screen. Pause before leaving.") : t("Timer paused. You may enter the active total manually.")}
         </p>
-        <label>
-          Actual active minutes
-          <input
+        <label>{t("Actual active minutes ")}<input
             type="number"
             min={1}
             max={525600}
@@ -774,9 +673,7 @@ export function TaskInbox({ workspace: w }) {
             type="checkbox"
             checked={completed}
             onChange={(e) => setCompleted(e.target.checked)}
-          />
-          This completes the same scope estimated in the plan
-        </label>
+          />{t("This completes the same scope estimated in the plan ")}</label>
         <button
           type="button"
           className="secondary-button"
@@ -792,9 +689,7 @@ export function TaskInbox({ workspace: w }) {
               w.notify("Active-effort outcome saved.");
             })
           }
-        >
-          Save measured outcome
-        </button>
+        >{t("Save measured outcome ")}</button>
       </section>
     </div>
   );
